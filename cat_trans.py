@@ -46,16 +46,16 @@ def write_transactions_to_csv(transactions, totals, output_file):
         writer.writerow({
             "date": "TOTAL",
             "name": "Income",
-            "savings": "",
+            "savings": totals["total_income"],
             "expense": "",
-            "income": totals["total_income"]
+            "income": ""
         })
 
         writer.writerow({
             "date": "TOTAL",
             "name": "Expense",
-            "savings": "",
-            "expense": totals["total_expense"],
+            "savings": totals["total_expense"],
+            "expense": "",
             "income": ""
         })
 
@@ -68,11 +68,19 @@ def write_transactions_to_csv(transactions, totals, output_file):
         })
 
         writer.writerow({
-            "date": "BALANCE",
-            "name": "",
-            "savings": "",
+            "date": "TOTAL",
+            "name": "Unallocated",
+            "savings": totals["unallocated"],
             "expense": "",
-            "income": totals["balance"]
+            "income": ""
+        })
+
+        writer.writerow({
+            "date": "BALANCE",
+            "name": "Total Income - Total Expense",
+            "savings": totals["balance"],
+            "expense": "",
+            "income": ""
         })
 
 def read_transactions(file_path,transactions):
@@ -116,17 +124,21 @@ def process_transactions(transactions):
         total_savings += t["savings"]
 
     balance = total_income - total_expense
+    unallocated = balance - total_savings
 
     print(f"Total Income : {total_income:.2f}")
     print(f"Total Expense: {total_expense:.2f}")
     print(f"Total Savings: {total_savings:.2f}")
+    print(f"Unallocated  : {unallocated:.2f}")
     print(f"Balance      : {balance:.2f}")
+    
 
     return {
         "total_income": total_income,
         "total_expense": total_expense,
         "total_savings": total_savings,
-        "balance": balance
+        "balance": balance,
+        "unallocated": unallocated
     }
 
 
