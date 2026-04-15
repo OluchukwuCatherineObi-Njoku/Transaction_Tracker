@@ -71,17 +71,10 @@ def write_transactions_to_csv(transactions, totals, output_file):
             "income": ""
         })
 
-        writer.writerow({
-            "date": "TOTAL",
-            "name": "Unallocated",
-            "savings": totals["unallocated"],
-            "expense": "",
-            "income": ""
-        })
 
         writer.writerow({
             "date": "BALANCE",
-            "name": "Total Income - Total Expense",
+            "name": "Total Income - (Total Expense + Total Savings)",
             "savings": totals["balance"],
             "expense": "",
             "income": ""
@@ -91,7 +84,7 @@ def write_transactions_to_csv(transactions, totals, output_file):
 def write_monthly_totals(monthly, output_file):
     
     # Write to CSV
-    fieldnames = ["month", "income", "expense", "savings", "balance", "unallocated"]
+    fieldnames = ["month", "income", "expense", "savings", "balance"]
 
     with open(output_file, mode="w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
@@ -144,8 +137,7 @@ def process_transactions(transactions):
     "income": 0.0,
     "expense": 0.0,
     "savings": 0.0,
-    "balance": 0.0,
-    "unallocated": 0.0
+    "balance": 0.0
 })
 
     for t in transactions: 
@@ -154,20 +146,17 @@ def process_transactions(transactions):
         monthly_recs[month]["income"] += t["income"]
         monthly_recs[month]["expense"] += t["expense"]
         monthly_recs[month]["savings"] += t["savings"]
-        monthly_recs[month]["balance"] = monthly_recs[month]["income"] - monthly_recs[month]["expense"]
-        monthly_recs[month]["unallocated"] = monthly_recs[month]["balance"] - monthly_recs[month]["savings"]
+        monthly_recs[month]["balance"] = monthly_recs[month]["income"] - (monthly_recs[month]["expense"] + monthly_recs[month]["savings"])
 
         total_expense += t["expense"]
         total_income += t["income"]
         total_savings += t["savings"]
 
-    balance = total_income - total_expense
-    unallocated = balance - total_savings
+    balance = total_income - (total_expense + total_savings)
 
     print(f"Total Income : {total_income:.2f}")
     print(f"Total Expense: {total_expense:.2f}")
     print(f"Total Savings: {total_savings:.2f}")
-    print(f"Unallocated  : {unallocated:.2f}")
     print(f"Balance      : {balance:.2f}")
     
 
@@ -175,8 +164,7 @@ def process_transactions(transactions):
         "total_income": total_income,
         "total_expense": total_expense,
         "total_savings": total_savings,
-        "balance": balance,
-        "unallocated": unallocated
+        "balance": balance
     }, monthly_recs
 
 
