@@ -1,6 +1,8 @@
 import csv
 import re
 from datetime import datetime
+from collections import defaultdict
+
 
 SAVINGS = 1
 NULL_TRANSFERS = 2
@@ -15,6 +17,8 @@ def name_processing(name):
         return ['Internet Banking E-TRANSFER MeeeW',SAVINGS]
     elif name == 'Electronic Funds Transfer PREAUTHORIZED DEBIT SPECIAL DEPOSIT':
         return ['Electronic Funds Transfer PREAUTHORIZED DEBIT SPECIAL DEPOSIT',SAVINGS]
+    elif name == 'PAYMENT THANK YOU/PAIEMEN T MERCI':
+        return ['PAYMENT THANK YOU/PAIEMEN T MERCI',NULL_TRANSFERS]
     else:
         return [name.strip(),EXPENSE]
 
@@ -83,6 +87,24 @@ def write_transactions_to_csv(transactions, totals, output_file):
             "income": ""
         })
 
+
+def write_monthly_totals(monthly, output_file):
+    
+    # Write to CSV
+    fieldnames = ["month", "income", "expense", "savings", "balance", "unallocated"]
+
+    with open(output_file, mode="w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for month in sorted(monthly.keys()):
+            row = {"month": month}
+            row.update(monthly[month])
+            writer.writerow(row)
+
+    print(f"Monthly totals exported: {output_file}")
+
+
 def read_transactions(file_path,transactions):
 
     with open(file_path, mode='r', newline='', encoding='utf-8') as file:
@@ -118,7 +140,23 @@ def process_transactions(transactions):
     total_income = 0
     total_savings = 0
 
-    for t in transactions:
+    monthly_recs = defaultdict(lambda: {
+    "income": 0.0,
+    "expense": 0.0,
+    "savings": 0.0,
+    "balance": 0.0,
+    "unallocated": 0.0
+})
+
+    for t in transactions: 
+        month = t["date"].strftime("%Y-%m")
+
+        monthly_recs[month]["income"] += t["income"]
+        monthly_recs[month]["expense"] += t["expense"]
+        monthly_recs[month]["savings"] += t["savings"]
+        monthly_recs[month]["balance"] = monthly_recs[month]["income"] - monthly_recs[month]["expense"]
+        monthly_recs[month]["unallocated"] = monthly_recs[month]["balance"] - monthly_recs[month]["savings"]
+
         total_expense += t["expense"]
         total_income += t["income"]
         total_savings += t["savings"]
@@ -139,7 +177,7 @@ def process_transactions(transactions):
         "total_savings": total_savings,
         "balance": balance,
         "unallocated": unallocated
-    }
+    }, monthly_recs
 
 
 if __name__ == "__main__":
@@ -151,10 +189,12 @@ if __name__ == "__main__":
 
     print(f"Loaded {len(transactions)} transactions\n")
 
-    trans_sums = process_transactions(transactions)
+    trans_sums, monthlies = process_transactions(transactions)
 
     write_transactions_to_csv(transactions, trans_sums, "processed.csv")
-    print("CSV exported: processed.csv")
+    write_monthly_totals(monthlies, "monthly_totals.csv")
+    # print("CSV exported: processed.csv")
+    print(monthlies)
 
     # # Example: print all transactions
     # for t in transactions:
