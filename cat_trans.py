@@ -40,40 +40,40 @@ def write_transactions_to_csv(transactions, totals, output_file):
                 "income": t["income"]
             })
 
-    writer.writerow({k: "" for k in fieldnames})
+        writer.writerow({k: "" for k in fieldnames})
 
-    # Totals section
-    writer.writerow({
-        "date": "TOTAL",
-        "name": "Income",
-        "savings": "",
-        "expense": "",
-        "income": totals["total_income"]
-    })
+        # Totals section
+        writer.writerow({
+            "date": "TOTAL",
+            "name": "Income",
+            "savings": "",
+            "expense": "",
+            "income": totals["total_income"]
+        })
 
-    writer.writerow({
-        "date": "TOTAL",
-        "name": "Expense",
-        "savings": "",
-        "expense": totals["total_expense"],
-        "income": ""
-    })
+        writer.writerow({
+            "date": "TOTAL",
+            "name": "Expense",
+            "savings": "",
+            "expense": totals["total_expense"],
+            "income": ""
+        })
 
-    writer.writerow({
-        "date": "TOTAL",
-        "name": "Savings",
-        "savings": totals["total_savings"],
-        "expense": "",
-        "income": ""
-    })
+        writer.writerow({
+            "date": "TOTAL",
+            "name": "Savings",
+            "savings": totals["total_savings"],
+            "expense": "",
+            "income": ""
+        })
 
-    writer.writerow({
-        "date": "BALANCE",
-        "name": "",
-        "savings": "",
-        "expense": "",
-        "income": totals["balance"]
-    })
+        writer.writerow({
+            "date": "BALANCE",
+            "name": "",
+            "savings": "",
+            "expense": "",
+            "income": totals["balance"]
+        })
 
 def read_transactions(file_path,transactions):
 
