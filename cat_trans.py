@@ -187,6 +187,8 @@ if __name__ == "__main__":
     read_transactions("cibc_saving.csv", transactions)
     read_transactions("cibc_credit.csv", transactions)
 
+    transactions.sort(key=lambda t: t["date"])
+
     print(f"Loaded {len(transactions)} transactions\n")
 
     trans_sums, monthlies = process_transactions(transactions)
