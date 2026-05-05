@@ -1,3 +1,4 @@
 cibc*
 *.csv
 data*
+*pycache*
