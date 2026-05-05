@@ -155,11 +155,6 @@ def process_transactions(transactions):
         total_savings += t["savings"]
 
     balance = total_income - (total_expense + total_savings)
-
-    print(f"Total Income : {total_income:.2f}")
-    print(f"Total Expense: {total_expense:.2f}")
-    print(f"Total Savings: {total_savings:.2f}")
-    print(f"Balance      : {balance:.2f}")
     
 
     return {

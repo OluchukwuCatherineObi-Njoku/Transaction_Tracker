@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Transaction Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  </head>
+  <body class="bg-light">
+    <div class="container py-4">
+      <div class="card">
+        <div class="card-body">
+          <h3 class="card-title">Transaction Tracker</h3>
+          <p class="text-muted">Open on phone: <strong>http://{{ ip }}:5000/</strong></p>
+
+          {% if message %}
+            <div class="alert alert-warning">{{ message }}</div>
+          {% endif %}
+
+          <h5>cibc_data files</h5>
+          {% if files %}
+            <ul class="list-group mb-3">
+              {% for f in files %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">{{ f }} <span class="badge bg-secondary">CSV</span></li>
+              {% endfor %}
+            </ul>
+            <form method="post" action="/delete" class="d-inline">
+              <button class="btn btn-danger">Delete all files</button>
+            </form>
+          {% else %}
+            <p class="text-muted">No CSVs found in <code>cibc_data</code>.</p>
+          {% endif %}
+
+          <hr>
+          <h5>Instructions</h5>
+          <ol>
+            <li>Use your phone or PC browser to log into CIBC and download CSVs into the <code>cibc_data</code> folder on this machine.</li>
+            <li>When done, press <strong>Process files</strong> below.</li>
+          </ol>
+
+          <form method="post" action="/process">
+            <button class="btn btn-primary">Process files</button>
+            <a class="btn btn-outline-secondary ms-2" href="/outputs">View outputs</a>
+          </form>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -126,6 +126,7 @@ def main():
 
     if month_path:
         cat_trans.write_monthly_totals(monthlies, month_path)
+        print("\n\n\n\n\nMonthly Summary: ", monthlies)
     else:
         print("Skipped writing monthly totals CSV.")
 
