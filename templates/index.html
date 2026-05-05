@@ -1,49 +1,95 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>Transaction Tracker</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  </head>
-  <body class="bg-light">
-    <div class="container py-4">
-      <div class="card">
-        <div class="card-body">
-          <h3 class="card-title">Transaction Tracker</h3>
-          <p class="text-muted">Open on phone: <strong>http://{{ ip }}:5000/</strong></p>
+{% extends "base.html" %}
+{% block title %}Home — Transaction Tracker{% endblock %}
 
-          {% if message %}
-            <div class="alert alert-warning">{{ message }}</div>
-          {% endif %}
+{% block header_right %}
+  <span class="ip-chip" title="Open this URL on your phone">{{ ip }}:5000</span>
+{% endblock %}
 
-          <h5>cibc_data files</h5>
-          {% if files %}
-            <ul class="list-group mb-3">
-              {% for f in files %}
-                <li class="list-group-item d-flex justify-content-between align-items-center">{{ f }} <span class="badge bg-secondary">CSV</span></li>
-              {% endfor %}
-            </ul>
-            <form method="post" action="/delete" class="d-inline">
-              <button class="btn btn-danger">Delete all files</button>
-            </form>
-          {% else %}
-            <p class="text-muted">No CSVs found in <code>cibc_data</code>.</p>
-          {% endif %}
+{% block content %}
 
-          <hr>
-          <h5>Instructions</h5>
-          <ol>
-            <li>Use your phone or PC browser to log into CIBC and download CSVs into the <code>cibc_data</code> folder on this machine.</li>
-            <li>When done, press <strong>Process files</strong> below.</li>
-          </ol>
-
-          <form method="post" action="/process">
-            <button class="btn btn-primary">Process files</button>
-            <a class="btn btn-outline-secondary ms-2" href="/outputs">View outputs</a>
-          </form>
-        </div>
-      </div>
+{# ── Upload ── #}
+<div class="card">
+  <div class="card-label">Upload CIBC CSVs</div>
+  <form method="post" action="/upload" enctype="multipart/form-data" id="upload-form">
+    <div class="upload-zone" id="drop-zone">
+      <label for="csv-files">
+        <div class="upload-icon">📂</div>
+        <div class="upload-head">Tap to select CSV files</div>
+        <div class="upload-hint">or drag &amp; drop here on desktop</div>
+        <input type="file" name="files" id="csv-files" multiple accept=".csv">
+      </label>
     </div>
-  </body>
-</html>
+    <button type="submit" class="btn btn-primary btn-full mt-1">↑ Upload</button>
+  </form>
+</div>
+
+{# ── Files ready ── #}
+<div class="card">
+  <div class="card-label">
+    Ready to process &nbsp;
+    <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text)">
+      {{ files|length }} file{{ 's' if files|length != 1 else '' }}
+    </span>
+  </div>
+
+  {% if files %}
+    <ul class="file-list">
+      {% for f in files %}
+        <li class="file-item">
+          <span class="file-name">{{ f }}</span>
+          <span class="badge">CSV</span>
+        </li>
+      {% endfor %}
+    </ul>
+    <div class="mt-1">
+      <form method="post" action="/delete"
+            onsubmit="return confirm('Remove all {{ files|length }} file(s) from cibc_data?')">
+        <button class="btn btn-danger btn-sm">🗑&nbsp; Clear all files</button>
+      </form>
+    </div>
+  {% else %}
+    <div class="empty">
+      <div class="empty-icon">📭</div>
+      <div class="empty-text">No CSV files yet — upload some above</div>
+    </div>
+  {% endif %}
+</div>
+
+{# ── Actions ── #}
+<div class="btn-row">
+  <form method="post" action="/process" style="flex:2">
+    <button class="btn btn-primary btn-full" {% if not files %}disabled{% endif %}>
+      ⚡&nbsp; Process files
+    </button>
+  </form>
+  <a class="btn btn-ghost" href="/outputs">Outputs</a>
+</div>
+
+<script>
+(function () {
+  const zone  = document.getElementById('drop-zone');
+  const input = document.getElementById('csv-files');
+  const form  = document.getElementById('upload-form');
+
+  ['dragenter', 'dragover'].forEach(ev =>
+    zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('dragover'); })
+  );
+  ['dragleave', 'drop'].forEach(ev =>
+    zone.addEventListener(ev, () => zone.classList.remove('dragover'))
+  );
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    const dt = new DataTransfer();
+    [...e.dataTransfer.files]
+      .filter(f => f.name.toLowerCase().endsWith('.csv'))
+      .forEach(f => dt.items.add(f));
+    input.files = dt.files;
+    if (input.files.length) form.submit();
+  });
+  input.addEventListener('change', () => {
+    if (input.files.length) form.submit();
+  });
+}());
+</script>
+
+{% endblock %}
