@@ -1,5 +1,7 @@
 import csv
 import re
+import os
+import glob
 from datetime import datetime
 from collections import defaultdict
 
@@ -171,21 +173,40 @@ def process_transactions(transactions):
 if __name__ == "__main__":
 
     transactions = []
-    read_transactions("cibc.csv", transactions)
-    read_transactions("cibc_saving.csv", transactions)
-    read_transactions("cibc_credit.csv", transactions)
 
-    transactions.sort(key=lambda t: t["date"])
+    # Determine script directory and data directory
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    data_dir = os.path.join(script_dir, "cibc_data")
+
+    # If the cibc_data folder doesn't exist, fall back to the script directory
+    if not os.path.isdir(data_dir):
+        print(f"Directory '{data_dir}' not found; falling back to script directory '{script_dir}'")
+        data_dir = script_dir
+
+    # Find all CSV files in the chosen data directory
+    csv_files = sorted([os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.lower().endswith('.csv')])
+
+    if not csv_files:
+        print(f"No CSV files found in {data_dir}")
+    else:
+        for fp in csv_files:
+            print(f"Reading: {fp}")
+            read_transactions(fp, transactions)
+
+    transactions.sort(key=lambda t: t["date"]) if transactions else None
 
     print(f"Loaded {len(transactions)} transactions\n")
 
     trans_sums, monthlies = process_transactions(transactions)
 
-    write_transactions_to_csv(transactions, trans_sums, "processed.csv")
-    write_monthly_totals(monthlies, "monthly_totals.csv")
-    # print("CSV exported: processed.csv")
-    print(monthlies)
+    # Ensure output directory exists
+    out_dir = os.path.join(script_dir, "data_summary")
+    os.makedirs(out_dir, exist_ok=True)
 
-    # # Example: print all transactions
-    # for t in transactions:
-    #     print(t)
+    processed_path = os.path.join(out_dir, "processed.csv")
+    monthly_path = os.path.join(out_dir, "monthly_totals.csv")
+
+    write_transactions_to_csv(transactions, trans_sums, processed_path)
+    write_monthly_totals(monthlies, monthly_path)
+
+    print(monthlies)
