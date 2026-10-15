@@ -75,6 +75,7 @@
       font-size: .82rem; margin-top: .625rem; font-weight: 500;
     }
     .lock-note  { font-size: .7rem; color: var(--muted); margin-top: .875rem; }
+    .lock-note a { color: var(--primary); text-decoration: underline; cursor: pointer; }
 
     /* ── Header ── */
     .hdr {
@@ -460,19 +461,52 @@
 <!-- ══════════════════ LOCK SCREEN ══════════════════ -->
 <div id="screen-lock">
   <div class="lock-card">
-    <div class="lock-icon" id="lock-icon">🔒</div>
-    <h2 class="lock-title" id="lock-title"></h2>
-    <p  class="lock-sub"   id="lock-sub"></p>
+    <!-- Unlock / create / import -->
+    <div id="lock-main">
+      <div class="lock-icon" id="lock-icon">🔒</div>
+      <h2 class="lock-title" id="lock-title"></h2>
+      <p  class="lock-sub"   id="lock-sub"></p>
 
-    <input type="password" id="lock-pwd"  class="lock-input" placeholder="Password"
-           autocomplete="current-password" enterkeyhint="go">
-    <input type="password" id="lock-conf" class="lock-input" placeholder="Confirm password"
-           autocomplete="new-password" enterkeyhint="go" hidden>
+      <input type="password" id="lock-pwd"  class="lock-input" placeholder="Password"
+             autocomplete="current-password" enterkeyhint="go">
+      <input type="password" id="lock-conf" class="lock-input" placeholder="Confirm password"
+             autocomplete="new-password" enterkeyhint="go" hidden>
 
-    <div id="lock-err" class="lock-err" hidden></div>
+      <div id="lock-err" class="lock-err" hidden></div>
 
-    <button class="btn btn-primary btn-full mt-1" id="lock-btn" onclick="handleUnlock()"></button>
-    <p class="lock-note" id="lock-note"></p>
+      <button class="btn btn-primary btn-full mt-1" id="lock-btn" onclick="handleUnlock()"></button>
+      <p class="lock-note" id="lock-note"></p>
+    </div>
+
+    <!-- Change password (needs the current one) -->
+    <div id="lock-change" hidden>
+      <div class="lock-icon">🔑</div>
+      <h2 class="lock-title">Change password</h2>
+      <p class="lock-sub">Your history, budgets and rules are kept.</p>
+      <input type="password" id="lc-cur"  class="lock-input" placeholder="Current password" autocomplete="current-password">
+      <input type="password" id="lc-new"  class="lock-input" placeholder="New password"     autocomplete="new-password">
+      <input type="password" id="lc-conf" class="lock-input" placeholder="Confirm new password" autocomplete="new-password" enterkeyhint="go">
+      <div id="lc-err" class="lock-err" hidden></div>
+      <button class="btn btn-primary btn-full mt-1" id="lc-btn" onclick="handleLockChange()">Change password &amp; unlock</button>
+      <p class="lock-note"><a onclick="showLockView('main')">← Back</a></p>
+    </div>
+
+    <!-- Forgot password -->
+    <div id="lock-forgot" hidden>
+      <div class="lock-icon">🤔</div>
+      <h2 class="lock-title">Forgot your password?</h2>
+      <p class="lock-sub">It can't be recovered — your data is encrypted with it, and it isn't stored anywhere.</p>
+      <div class="alert alert-success" style="text-align:left;font-size:.82rem">
+        <b>Still know your current password?</b> You can switch to a new one without losing anything.
+        <button class="btn btn-outline btn-full btn-sm mt-1" onclick="showLockView('change')">🔑 Change my password</button>
+      </div>
+      <div class="alert alert-danger" style="text-align:left;font-size:.82rem;margin-top:.75rem">
+        <b>Truly forgotten?</b> Erase Tracker 2's data on this device and set a new password.
+        Budgets and your own rules are deleted. You can re-upload your CSVs afterwards; duplicates are skipped.
+        <button class="btn btn-danger btn-full btn-sm mt-1" onclick="eraseAndStartOver()">Erase &amp; start over</button>
+      </div>
+      <p class="lock-note"><a onclick="showLockView('main')">← Back</a></p>
+    </div>
   </div>
 </div>
 
@@ -810,7 +844,14 @@ let merchReg        = [];
 // Crypto helpers  (Web Crypto API — no external libraries)
 // ═══════════════════════════════════════════════════════════════
 
-function b64Enc(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+// Chunked — spreading a large buffer into fromCharCode overflows the call stack (~150 KB+)
+function b64Enc(buf) {
+  const bytes = new Uint8Array(buf);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
 function b64Dec(str) { return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
 
 async function deriveKey(password, salt) {
@@ -840,6 +881,8 @@ async function decryptJSON(stored, key) {
 // Storage
 // ═══════════════════════════════════════════════════════════════
 
+let skipImport = false;   // "start fresh" chosen on the import screen
+
 // Returns { type: 'empty' | 'encrypted' | 'import' | 'legacy', data }
 function detectStorageState() {
   try {
@@ -848,6 +891,7 @@ function detectStorageState() {
       const parsed = JSON.parse(v3);
       if (parsed.ct) return { type: 'encrypted', data: parsed };
     }
+    if (skipImport) return { type: 'empty' };
     const v2 = localStorage.getItem(V2_KEY);
     if (v2) {
       const parsed = JSON.parse(v2);
@@ -869,7 +913,12 @@ let saveTimer = null;
 function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
-    await persist();
+    try {
+      await persist();
+    } catch (e) {
+      showAlert(`Couldn't save your changes: ${esc(e.message)}`, 'danger');
+      return;
+    }
     const ind = document.getElementById('save-ind');
     ind.classList.add('show');
     setTimeout(() => ind.classList.remove('show'), 1400);
@@ -1538,9 +1587,13 @@ function renderLockScreen() {
   const note  = document.getElementById('lock-note');
   const icon  = document.getElementById('lock-icon');
 
+  const pwd = document.getElementById('lock-pwd');
   document.getElementById('lock-err').hidden = true;
-  document.getElementById('lock-pwd').value  = '';
+  pwd.value  = '';
   conf.value = '';
+  pwd.placeholder = state.type === 'encrypted' ? 'Password'
+                  : state.type === 'import'    ? 'Your tracker.html password'
+                  : 'New password';
 
   if (state.type === 'encrypted') {
     icon.textContent  = '🔒';
@@ -1548,14 +1601,15 @@ function renderLockScreen() {
     sub.textContent   = 'Enter your password to view your budget';
     conf.hidden       = true;
     btn.textContent   = 'Unlock';
-    note.innerHTML    = 'Data encrypted with AES-256-GCM.';
+    note.innerHTML    = '<a onclick="showLockView(\'change\')">Change password</a> · <a onclick="showLockView(\'forgot\')">Forgot password?</a><br>Data encrypted with AES-256-GCM.';
   } else if (state.type === 'import') {
-    icon.textContent  = '✨';
-    title.textContent = 'Meet Tracker 2';
-    sub.textContent   = 'Enter your existing Tracker password to bring your history over.';
+    // Not a "set password" screen — the old password is the only key to tracker.html's history
+    icon.textContent  = '📥';
+    title.textContent = 'Import your history';
+    sub.innerHTML     = 'Enter the password you use in <b>tracker.html</b> — not a new one. Tracker 2 will use the same password.';
     conf.hidden       = true;
     btn.textContent   = 'Import & continue';
-    note.innerHTML    = 'Your original tracker.html data is left untouched.';
+    note.innerHTML    = '<a onclick="startFresh()">Want a new password instead? Start fresh</a><br>You\'ll re-upload your CSVs. tracker.html is left untouched.';
   } else if (state.type === 'legacy') {
     icon.textContent  = '🛡️';
     title.textContent = 'Secure your data';
@@ -1569,8 +1623,78 @@ function renderLockScreen() {
     sub.textContent   = 'Create a password to protect your financial data.';
     conf.hidden       = false;
     btn.textContent   = 'Get started';
-    note.innerHTML    = 'AES-256-GCM encryption. <strong>Keep your password safe — it cannot be recovered.</strong>';
+    note.innerHTML    = 'AES-256-GCM encryption. <strong>Keep your password safe — it cannot be recovered.</strong>' +
+      (skipImport && localStorage.getItem(V2_KEY)
+        ? '<br><a onclick="skipImport = false; showLockView(\'main\')">Import history from tracker.html instead</a>' : '');
   }
+}
+
+function showLockView(view) {
+  for (const v of ['main', 'change', 'forgot'])
+    document.getElementById('lock-' + v).hidden = v !== view;
+  if (view === 'change') {
+    for (const id of ['lc-cur', 'lc-new', 'lc-conf']) document.getElementById(id).value = '';
+    document.getElementById('lc-err').hidden = true;
+    document.getElementById('lc-cur').focus();
+  }
+  if (view === 'main') { renderLockScreen(); document.getElementById('lock-pwd').focus(); }
+}
+
+async function handleLockChange() {
+  const cur  = document.getElementById('lc-cur').value;
+  const nw   = document.getElementById('lc-new').value;
+  const conf = document.getElementById('lc-conf').value;
+  const err  = document.getElementById('lc-err');
+  const btn  = document.getElementById('lc-btn');
+  const fail = msg => { err.textContent = msg; err.hidden = false; };
+  err.hidden = true;
+  const state = detectStorageState();
+  if (state.type !== 'encrypted') { showLockView('main'); return; }
+  if (!cur)          return fail('Enter your current password.');
+  if (nw.length < 4) return fail('New password must be at least 4 characters.');
+  if (nw !== conf)   return fail('New passwords do not match.');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Please wait…';
+  try {
+    await unlockExisting(cur, state.data);
+  } catch (e) {
+    activeKey = null; currentSalt = null;
+    btn.disabled = false;
+    btn.textContent = 'Change password & unlock';
+    return fail(e.name === 'OperationError' ? 'Current password is incorrect.' : 'Something went wrong: ' + e.message);
+  }
+  try {
+    const salt  = crypto.getRandomValues(new Uint8Array(16));
+    currentSalt = b64Enc(salt);
+    activeKey   = await deriveKey(nw, salt);
+    await persist();
+  } catch (e) {
+    activeKey = null; currentSalt = null;
+    btn.disabled = false;
+    btn.textContent = 'Change password & unlock';
+    return fail('Could not save the new password: ' + e.message + ' — your old password still works.');
+  }
+  btn.disabled = false;
+  btn.textContent = 'Change password & unlock';
+  enterApp();
+  showAlert('Password changed. Use your new password from now on.', 'success');
+}
+
+// The password is never stored — it *is* the encryption key — so "forgot" can only mean
+// wiping Tracker 2's saved data on this device. tracker.html's data (tt_v2) is not touched.
+function eraseAndStartOver() {
+  if (!confirm("Erase Tracker 2's saved history, budgets and rules on this device?\n\nThis can't be undone. tracker.html is not affected.")) return;
+  localStorage.removeItem(STORAGE_KEY);
+  skipImport = true;          // go straight to "create a new password"
+  showLockView('main');
+}
+
+function startFresh() {
+  if (!confirm("Start Tracker 2 with a new password and empty history? Your tracker.html data stays as it is; you'll just re-upload your CSVs here.")) return;
+  skipImport = true;
+  renderLockScreen();
+  document.getElementById('lock-pwd').focus();
 }
 
 function showLockErr(msg) {
@@ -1612,21 +1736,35 @@ async function handleUnlock() {
     }
     pwdEl.value  = '';
     confEl.value = '';
-    document.getElementById('screen-lock').style.display = 'none';
-    document.getElementById('app').style.display          = '';
-
-    refreshRules();
-    showMain();
-    if (Object.keys(store.months).length > 0) collapseUpload();
+    skipImport   = false;
+    enterApp();
 
   } catch (e) {
     const isWrongPwd = e.name === 'OperationError' || (e.message && e.message.includes('decrypt'));
-    showLockErr(isWrongPwd ? 'Incorrect password. Try again.' : 'Something went wrong: ' + e.message);
+    if (isWrongPwd && state.type === 'import') {
+      showLockErr("That isn't your tracker.html password. ");
+      const a = Object.assign(document.createElement('a'), { textContent: 'Start fresh with a new password instead' });
+      a.style.cssText = 'color:inherit;text-decoration:underline;cursor:pointer;font-weight:700';
+      a.onclick = startFresh;
+      document.getElementById('lock-err').appendChild(a);
+    } else if (isWrongPwd) {
+      showLockErr('Incorrect password. Try again, or see “Forgot password?” below.');
+    } else {
+      showLockErr('Something went wrong: ' + e.message);
+    }
     activeKey = null; currentSalt = null;
   } finally {
     btn.disabled    = false;
     btn.textContent = label;
   }
+}
+
+function enterApp() {
+  document.getElementById('screen-lock').style.display = 'none';
+  document.getElementById('app').style.display          = '';
+  refreshRules();
+  showMain();
+  if (Object.keys(store.months).length > 0) collapseUpload();
 }
 
 function lock() {
@@ -1637,8 +1775,7 @@ function lock() {
   closeRuleModal();
   document.getElementById('screen-lock').style.display = '';
   document.getElementById('app').style.display          = 'none';
-  renderLockScreen();
-  document.getElementById('lock-pwd').focus();
+  showLockView('main');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2547,6 +2684,7 @@ dropZone.addEventListener('drop', e => {
 document.getElementById('lock-pwd').addEventListener('keydown',  e => { if (e.key === 'Enter') handleUnlock(); });
 document.getElementById('lock-conf').addEventListener('keydown', e => { if (e.key === 'Enter') handleUnlock(); });
 document.getElementById('chpwd-conf').addEventListener('keydown', e => { if (e.key === 'Enter') handleChangePassword(); });
+document.getElementById('lc-conf').addEventListener('keydown', e => { if (e.key === 'Enter') handleLockChange(); });
 document.getElementById('m-pattern').addEventListener('keydown',  e => { if (e.key === 'Enter') saveRuleFromModal(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRuleModal(); });
 window.addEventListener('scroll', hideTip, { passive: true });
