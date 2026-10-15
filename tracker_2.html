@@ -1,0 +1,2563 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fce7f3">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Transaction Tracker 2</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    [hidden] { display: none !important; }
+
+    :root {
+      --bg:      #fdf2f8;       /* palest blush pink */
+      --surface: #ffffff;       /* white cards */
+      --surf2:   #fdf2f8;       /* inset tint */
+      --border:  #fbcfe8;       /* soft pink border */
+      --text:    #1f2937;       /* dark gray — readable on white */
+      --text2:   #4b5563;       /* secondary ink */
+      --muted:   #9ca3af;       /* neutral gray */
+      --primary: #db2777;       /* pink-600 */
+      --prim2:   #be185d;       /* pink-700 */
+      --green:   #059669;       /* emerald — income */
+      --orange:  #ea580c;       /* warm orange — expense */
+      --violet:  #7c3aed;       /* violet — savings */
+      --red:     #dc2626;       /* negative balance only */
+      --shadow:  0 1px 4px rgba(219,39,119,.08), 0 1px 2px rgba(219,39,119,.04);
+
+      /* status palette — always paired with an icon + label */
+      --st-good:     #0ca30c;
+      --st-warning:  #fab219;
+      --st-serious:  #ec835a;
+      --st-critical: #d03b3b;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      min-height: 100svh;
+    }
+
+    /* ── Lock screen ── */
+    #screen-lock {
+      position: fixed; inset: 0; z-index: 200;
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      padding: 1.5rem;
+    }
+    .lock-card {
+      background: #fff; border-radius: 24px; padding: 2rem 1.5rem;
+      width: 100%; max-width: 360px; text-align: center;
+      box-shadow: 0 8px 32px rgba(219,39,119,.15);
+      border: 1px solid var(--border);
+    }
+    .lock-icon  { font-size: 3rem; margin-bottom: .625rem; }
+    .lock-title { font-size: 1.2rem; font-weight: 700; color: var(--prim2); margin-bottom: .3rem; }
+    .lock-sub   { font-size: .85rem; color: var(--muted); margin-bottom: 1.25rem; }
+    .lock-input {
+      width: 100%; padding: .75rem 1rem;
+      border: 1.5px solid var(--border); border-radius: 12px;
+      font-size: 1rem; background: var(--bg); color: var(--text);
+      outline: none; transition: border-color .2s;
+      font-family: inherit;
+    }
+    .lock-input:focus { border-color: var(--primary); }
+    .lock-input + .lock-input { margin-top: .625rem; }
+    .lock-err {
+      background: #fff1f2; border: 1px solid #fecdd3; color: #9f1239;
+      border-radius: 8px; padding: .5rem .875rem;
+      font-size: .82rem; margin-top: .625rem; font-weight: 500;
+    }
+    .lock-note  { font-size: .7rem; color: var(--muted); margin-top: .875rem; }
+
+    /* ── Header ── */
+    .hdr {
+      background: #fce7f3; border-bottom: 1px solid #f9a8d4;
+      padding: .875rem 1.25rem;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 10; gap: 1rem;
+      box-shadow: 0 1px 3px rgba(219,39,119,.06);
+    }
+    .hdr-title { font-size: 1rem; font-weight: 700; letter-spacing: -.02em; color: var(--prim2); }
+    .hdr-right { display: flex; gap: .5rem; align-items: center; }
+    .save-ind  { font-size: .72rem; color: var(--green); font-weight: 600; opacity: 0; transition: opacity .3s; }
+    .save-ind.show { opacity: 1; }
+
+    /* ── Layout ── */
+    .main {
+      max-width: 640px; margin: 0 auto;
+      padding: 1.25rem 1rem 5rem;
+      display: flex; flex-direction: column; gap: 1rem;
+    }
+    .screen { display: flex; flex-direction: column; gap: 1rem; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.125rem;
+      box-shadow: var(--shadow);
+    }
+    .card-label {
+      font-size: .68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--muted); margin-bottom: .875rem;
+      display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+      padding: .75rem 1.25rem; border-radius: 12px; border: none;
+      font-size: .95rem; font-weight: 600; cursor: pointer; text-decoration: none;
+      transition: filter .15s, transform .1s;
+      min-height: 48px; line-height: 1;
+      -webkit-tap-highlight-color: transparent; user-select: none;
+      font-family: inherit;
+    }
+    .btn:active   { transform: scale(.96); filter: brightness(.9); }
+    .btn:disabled { opacity: .45; pointer-events: none; }
+    .btn-primary  { background: linear-gradient(135deg, #db2777, #be185d); color: #fff; box-shadow: 0 2px 8px rgba(190,24,93,.28); }
+    .btn-danger   { background: #fff1f2; color: #e11d48; border: 1.5px solid #fecdd3; }
+    .btn-ghost    { background: #fdf2f8; color: var(--text); border: 1px solid var(--border); }
+    .btn-outline  { background: #fff; color: var(--primary); border: 1.5px solid #f9a8d4; }
+    .btn-subtle   { background: transparent; color: var(--muted); border: none; font-size: .82rem; cursor: pointer; padding: .25rem .5rem; font-family: inherit; }
+    .btn-subtle:hover { color: var(--primary); }
+    .btn-full     { width: 100%; }
+    .btn-sm       { min-height: 36px; padding: .4rem .875rem; font-size: .8rem; border-radius: 8px; }
+    .btn-icon     { min-height: 30px; padding: .3rem .6rem; font-size: .75rem; border-radius: 6px; background: #fce7f3; color: var(--text2); border: 1px solid var(--border); cursor: pointer; font-family: inherit; white-space: nowrap; }
+    .btn-icon:hover { color: var(--primary); border-color: #f9a8d4; }
+    .btn-x        { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: .2rem .45rem; border-radius: 6px; font-family: inherit; }
+    .btn-x:hover  { color: #e11d48; background: #fff1f2; }
+
+    /* ── Upload zone ── */
+    .upload-zone {
+      border: 2px dashed #f9a8d4; border-radius: 14px;
+      padding: 1.75rem 1rem; text-align: center; cursor: pointer;
+      transition: border-color .2s, background .2s; background: #fdf2f8;
+    }
+    .upload-zone:hover,
+    .upload-zone.dragover { border-color: var(--primary); background: #fce7f3; }
+    .upload-zone label    { cursor: pointer; display: block; }
+    .upload-zone input    { display: none; }
+    .upload-icon { font-size: 2.25rem; margin-bottom: .4rem; }
+    .upload-head { font-weight: 600; margin-bottom: .15rem; color: var(--prim2); }
+    .upload-hint { font-size: .78rem; color: var(--muted); }
+
+    .file-list  { list-style: none; }
+    .file-item  {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .6rem 0; border-bottom: 1px solid #fce7f3;
+      font-size: .875rem; gap: .5rem;
+    }
+    .file-item:last-child { border-bottom: none; }
+    .file-name  { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .badge      {
+      font-size: .62rem; font-weight: 700; padding: .2rem .45rem; border-radius: 5px;
+      background: #fce7f3; color: var(--primary); flex-shrink: 0;
+      text-transform: uppercase; letter-spacing: .05em;
+    }
+    .badge-new  { background: #d1fae5; color: var(--green); }
+
+    #upload-body { overflow: hidden; transition: max-height .25s ease; }
+    #upload-body.collapsed { max-height: 0 !important; }
+
+    /* ── Alerts ── */
+    .alert {
+      padding: .875rem 1rem; border-radius: 12px;
+      font-size: .875rem; border: 1px solid transparent; font-weight: 500;
+    }
+    .alert-success { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
+    .alert-warning { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+    .alert-danger  { background: #fff1f2; border-color: #fda4af; color: #9f1239; }
+
+    /* ── Stat cards ── */
+    .stat-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .stat-card  { border-radius: 14px; padding: 1rem .875rem; border: 1px solid transparent; box-shadow: var(--shadow); }
+    .stat-card.income      { background: #ecfdf5; border-color: #a7f3d0; }
+    .stat-card.expense     { background: #fff7ed; border-color: #fed7aa; }
+    .stat-card.savings     { background: #f5f3ff; border-color: #ddd6fe; }
+    .stat-card.balance-pos { background: #ecfdf5; border-color: #a7f3d0; }
+    .stat-card.balance-neg { background: #fff1f2; border-color: #fecdd3; }
+    .stat-label { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); margin-bottom: .3rem; }
+    .stat-value { font-size: 1.2rem; font-weight: 800; letter-spacing: -.03em; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .stat-value.sm { font-size: 1rem; }
+
+    .c-green  { color: var(--green); }
+    .c-orange { color: var(--orange); }
+    .c-violet { color: var(--violet); }
+    .c-red    { color: var(--red); }
+    .c-pink   { color: var(--primary); }
+    .c-muted  { color: var(--muted); }
+
+    /* ── Status chips (icon + label, never color alone) ── */
+    .chip {
+      display: inline-flex; align-items: center; gap: .3rem;
+      font-size: .7rem; font-weight: 700; padding: .22rem .6rem;
+      border-radius: 999px; white-space: nowrap; line-height: 1.3;
+      text-transform: none; letter-spacing: normal;
+    }
+    .chip .ci { font-size: .72rem; }
+    .chip-good     { background: #ecfdf5; color: #065f46; }  .chip-good .ci     { color: var(--st-good); }
+    .chip-warning  { background: #fffbeb; color: #92400e; }  .chip-warning .ci  { color: #d99000; }
+    .chip-serious  { background: #fff4ed; color: #9a3412; }  .chip-serious .ci  { color: var(--st-serious); }
+    .chip-critical { background: #fff1f2; color: #9f1239; }  .chip-critical .ci { color: var(--st-critical); }
+    .chip-none     { background: #f3f4f6; color: #6b7280; }
+    .chip-lg       { font-size: .78rem; padding: .32rem .75rem; }
+
+    /* ── Meters ── */
+    .meter {
+      position: relative; height: 10px; border-radius: 999px;
+      background: #fce7f3; overflow: hidden; display: flex; gap: 2px;
+    }
+    .meter.lg   { height: 14px; }
+    .meter.sm   { height: 6px; }
+    .meter-fill { flex: none; height: 100%; border-radius: 999px; transition: width .7s cubic-bezier(.2,.8,.2,1); }
+    .meter-over {
+      flex: 1; height: 100%; border-radius: 0 999px 999px 0;
+      background: repeating-linear-gradient(135deg, var(--st-critical) 0 4px, #f08a8a 4px 8px);
+    }
+    .meter-tick {
+      position: absolute; top: -3px; bottom: -3px; width: 2px;
+      background: var(--text); border-radius: 2px; opacity: .55;
+    }
+
+    /* ── Hero (month budget headline) ── */
+    .hero {
+      border-radius: 20px; padding: 1.25rem 1.2rem 1.1rem;
+      border: 1px solid var(--border); box-shadow: var(--shadow);
+      background: linear-gradient(135deg, #ffffff 0%, #fdf2f8 100%);
+      position: relative; overflow: hidden;
+    }
+    .hero::after {
+      content: ''; position: absolute; right: -40px; top: -40px; width: 140px; height: 140px;
+      border-radius: 50%; background: radial-gradient(circle, rgba(219,39,119,.10), transparent 70%);
+      pointer-events: none;
+    }
+    .hero.st-critical { border-color: #fda4af; background: linear-gradient(135deg, #fff 0%, #fff1f2 100%); }
+    .hero.st-serious  { border-color: #fdba74; background: linear-gradient(135deg, #fff 0%, #fff7ed 100%); }
+    .hero.st-good     { border-color: #a7f3d0; background: linear-gradient(135deg, #fff 0%, #f0fdf4 100%); }
+    .hero.clickable   { cursor: pointer; }
+    .hero.clickable:hover { filter: brightness(.99); box-shadow: 0 4px 14px rgba(219,39,119,.12); }
+    .hero-top   { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+    .hero-kicker{ font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+    .hero-amt   { font-size: 2rem; font-weight: 800; letter-spacing: -.035em; line-height: 1.15; color: var(--text); }
+    .hero-of    { font-size: 1rem; font-weight: 600; color: var(--muted); letter-spacing: -.01em; }
+    .hero .meter { margin: .8rem 0 .55rem; }
+    .hero-msg   { font-size: .85rem; color: var(--text2); }
+    .hero-msg strong { color: var(--text); }
+    .hero-insights { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .7rem; }
+    .insight {
+      font-size: .74rem; background: rgba(255,255,255,.75); border: 1px solid var(--border);
+      border-radius: 999px; padding: .25rem .65rem; color: var(--text2);
+    }
+    .insight b { color: var(--text); }
+
+    /* ── Category breakdown ── */
+    .cat-row { border-bottom: 1px solid #fce7f3; padding: .7rem 0 .8rem; }
+    .cat-row:last-child { border-bottom: none; padding-bottom: .2rem; }
+    .cat-head {
+      display: flex; align-items: center; gap: .65rem; width: 100%;
+      background: none; border: none; cursor: pointer; text-align: left;
+      font-family: inherit; color: inherit; padding: 0; margin-bottom: .5rem;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .cat-ico {
+      width: 34px; height: 34px; border-radius: 10px; flex: none;
+      display: flex; align-items: center; justify-content: center; font-size: 1.05rem;
+    }
+    .cat-main  { flex: 1; min-width: 0; }
+    .cat-name  { font-weight: 650; font-size: .9rem; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cat-sub   { font-size: .75rem; color: var(--muted); display: block; }
+    .cat-sub b { color: var(--text2); font-weight: 650; }
+    .chev      { color: #f9a8d4; font-size: .8rem; transition: transform .2s; flex: none; }
+    .cat-row.open .chev { transform: rotate(180deg); }
+    .cat-body  {
+      margin-top: .75rem; padding: .75rem .8rem; background: #fdf2f8;
+      border-radius: 12px; border: 1px solid #fce7f3;
+      animation: drop .22s ease;
+    }
+    @keyframes drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+    .sec-label { font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: .1rem 0 .45rem; }
+    .sub-row   { padding: .35rem 0 .5rem; }
+    .sub-line  { display: flex; justify-content: space-between; gap: .5rem; font-size: .8rem; margin-bottom: .3rem; }
+    .sub-line .nm { color: var(--text); font-weight: 550; }
+    .sub-line .am { color: var(--text2); white-space: nowrap; }
+    .merch-row {
+      display: flex; align-items: center; gap: .5rem; font-size: .8rem;
+      padding: .38rem 0; border-top: 1px dashed #fbcfe8;
+    }
+    .merch-row:first-of-type { border-top: none; }
+    .merch-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .merch-n    { color: var(--muted); font-size: .72rem; white-space: nowrap; }
+    .merch-amt  { font-weight: 650; white-space: nowrap; }
+    .hint       { font-size: .75rem; color: var(--text2); background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: .5rem .65rem; margin-bottom: .6rem; }
+
+    /* ── Charts ── */
+    .chart       { width: 100%; height: auto; display: block; overflow: visible; touch-action: pan-y; }
+    .chart text  { font-family: inherit; }
+    .legend      { display: flex; flex-wrap: wrap; gap: .35rem 1rem; font-size: .74rem; color: var(--text2); margin-bottom: .5rem; }
+    .legend span { display: inline-flex; align-items: center; gap: .35rem; }
+    .lk-line     { width: 14px; height: 2px; border-radius: 2px; display: inline-block; }
+    .lk-dash     { width: 14px; height: 0; border-top: 2px dashed; display: inline-block; }
+    .lk-rect     { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+    .donut-wrap  { display: flex; align-items: center; gap: 1.1rem; }
+    .donut-wrap svg { width: 170px; flex: none; }
+    .donut-legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .45rem; }
+    .dl-row      { display: flex; align-items: center; gap: .5rem; font-size: .8rem; cursor: default; border-radius: 8px; padding: .1rem .25rem; }
+    .dl-row:hover{ background: #fdf2f8; }
+    .dl-row .nm  { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dl-row .pc  { color: var(--muted); font-size: .72rem; width: 2.6rem; text-align: right; }
+    .dl-row .am  { font-weight: 650; white-space: nowrap; }
+    @media (max-width: 460px) {
+      .donut-wrap { flex-direction: column; align-items: stretch; }
+      .donut-wrap svg { width: 180px; align-self: center; }
+    }
+
+    .tt {
+      position: fixed; z-index: 300; pointer-events: none;
+      background: #1f2937; color: #fff; border-radius: 10px;
+      padding: .5rem .7rem; font-size: .75rem; line-height: 1.45;
+      box-shadow: 0 6px 20px rgba(0,0,0,.18); max-width: 240px;
+    }
+    .tt-title { color: #d1d5db; font-size: .7rem; margin-bottom: .2rem; }
+    .tt-row   { display: flex; align-items: center; gap: .45rem; }
+    .tt-row b { font-weight: 700; }
+    .tt-row span { color: #d1d5db; }
+    .tt-key   { width: 10px; height: 2px; border-radius: 2px; flex: none; }
+
+    /* ── History rows ── */
+    .history-row {
+      display: grid; grid-template-columns: 1fr auto auto; align-items: center;
+      padding: .75rem .5rem .8rem; margin: 0 -.5rem;
+      border-bottom: 1px solid #fce7f3;
+      cursor: pointer; column-gap: .6rem; row-gap: .45rem;
+      transition: background .12s; border-radius: 10px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .history-row:last-child { border-bottom: none; }
+    .history-row:hover  { background: #fdf2f8; }
+    .history-row:active { background: #fce7f3; }
+    .history-month { font-weight: 600; font-size: .875rem; display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+    .history-nums  { display: flex; gap: .75rem; justify-content: flex-end; font-size: .8rem; font-weight: 600; }
+    .history-arrow { color: #f9a8d4; font-size: .85rem; }
+    .history-row .meter { grid-column: 1 / -1; }
+
+    /* ── Forms ── */
+    .fld       { display: flex; flex-direction: column; gap: .3rem; font-size: .8rem; color: var(--text2); font-weight: 600; }
+    .fld-row   { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .inp, .sel {
+      width: 100%; padding: .6rem .75rem;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      font-size: .9rem; color: var(--text); background: #fff;
+      outline: none; transition: border-color .2s; font-family: inherit; font-weight: 500;
+    }
+    .inp:focus, .sel:focus { border-color: var(--primary); }
+    .inp.sm    { padding: .4rem .55rem; font-size: .82rem; border-radius: 8px; }
+    .money     { position: relative; }
+    .money::before { content: '$'; position: absolute; left: .7rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .85rem; pointer-events: none; }
+    .money .inp { padding-left: 1.4rem; }
+    .pw-form   { display: flex; flex-direction: column; gap: .625rem; margin-top: .875rem; }
+
+    .cat-edit  { border: 1px solid #fce7f3; border-radius: 12px; margin-bottom: .55rem; background: #fff; }
+    .cat-edit > summary {
+      list-style: none; cursor: pointer; display: flex; align-items: center; gap: .6rem;
+      padding: .6rem .7rem; font-size: .88rem; font-weight: 600;
+    }
+    .cat-edit > summary::-webkit-details-marker { display: none; }
+    .cat-edit > summary .amt { margin-left: auto; color: var(--text2); font-size: .8rem; font-weight: 600; }
+    .cat-edit[open] > summary { border-bottom: 1px solid #fce7f3; }
+    .cat-edit-body { padding: .75rem; display: flex; flex-direction: column; gap: .6rem; }
+    .sub-edit   { display: grid; grid-template-columns: 1fr 110px auto; gap: .45rem; align-items: center; }
+    .swatch     { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+    .kind-tag   { font-size: .6rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: .12rem .4rem; border-radius: 4px; background: #f5f3ff; color: var(--violet); }
+    .kind-tag.ex { background: #f3f4f6; color: #6b7280; }
+
+    .rule-grp   { margin-bottom: .7rem; }
+    .rule-grp-h { font-size: .75rem; font-weight: 700; color: var(--text2); margin-bottom: .35rem; display: flex; align-items: center; gap: .4rem; }
+    .rule-chips { display: flex; flex-wrap: wrap; gap: .35rem; }
+    .rchip {
+      display: inline-flex; align-items: center; gap: .25rem;
+      font-size: .72rem; background: #fdf2f8; border: 1px solid var(--border);
+      border-radius: 999px; padding: .15rem .2rem .15rem .55rem; color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .rchip.user { background: #fce7f3; border-color: #f9a8d4; font-weight: 700; }
+    .rchip .to  { font-family: -apple-system, 'Segoe UI', system-ui, sans-serif; color: var(--muted); font-size: .68rem; }
+    .rchip button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: .8rem; padding: 0 .3rem; border-radius: 999px; }
+    .rchip button:hover { color: #e11d48; }
+
+    /* ── Modal ── */
+    .modal-bg {
+      position: fixed; inset: 0; z-index: 250; background: rgba(31,41,55,.35);
+      display: flex; align-items: flex-end; justify-content: center; padding: 0;
+      animation: fade .15s ease;
+    }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+    .modal {
+      background: #fff; width: 100%; max-width: 520px; border-radius: 22px 22px 0 0;
+      padding: 1.25rem 1.2rem 1.5rem; box-shadow: 0 -8px 30px rgba(219,39,119,.18);
+      display: flex; flex-direction: column; gap: .8rem; max-height: 90svh; overflow: auto;
+      animation: up .22s cubic-bezier(.2,.8,.2,1);
+    }
+    @keyframes up { from { transform: translateY(30px); opacity: .5; } to { transform: none; opacity: 1; } }
+    @media (min-width: 600px) { .modal-bg { align-items: center; } .modal { border-radius: 22px; } }
+    .modal h3 { font-size: 1.05rem; color: var(--prim2); }
+    .modal .ex { font-size: .75rem; color: var(--muted); font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; background: #fdf2f8; border-radius: 8px; padding: .4rem .55rem; }
+    .preview { font-size: .78rem; color: var(--text2); background: #f9fafb; border: 1px solid #f3f4f6; border-radius: 10px; padding: .55rem .7rem; }
+    .preview ul { margin: .3rem 0 0 1rem; color: var(--muted); }
+    .modal-actions { display: flex; gap: .6rem; justify-content: flex-end; }
+
+    /* ── Misc ── */
+    .page-head  { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+    .page-title { font-size: 1.05rem; font-weight: 700; }
+    .empty      { text-align: center; padding: 1.75rem 1rem; color: var(--muted); }
+    .empty-icon { font-size: 2.25rem; margin-bottom: .4rem; }
+    .empty-text { font-size: .875rem; }
+    .dl-col     { display: flex; flex-direction: column; gap: .625rem; }
+    .footer-links { display: flex; justify-content: center; gap: 1.5rem; padding-top: .5rem; flex-wrap: wrap; }
+    .mt-1 { margin-top: .75rem; }
+    .muted { color: var(--muted); }
+    .small { font-size: .8rem; }
+    .row-between { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+    .slim {
+      display: grid; grid-template-columns: 1fr auto auto; align-items: center;
+      column-gap: .6rem; row-gap: .5rem; cursor: pointer;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: .75rem 1rem .85rem; box-shadow: var(--shadow);
+      -webkit-tap-highlight-color: transparent; transition: background .12s;
+    }
+    .slim:hover  { background: #fdf2f8; }
+    .slim-title  { font-size: .875rem; font-weight: 600; display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+    .slim-amt    { font-size: .82rem; color: var(--muted); white-space: nowrap; }
+    .slim-amt b  { color: var(--text); font-weight: 700; }
+    .slim .meter { grid-column: 1 / -1; }
+
+    .trend-toggle {
+      width: 100%; display: flex; justify-content: space-between; align-items: center;
+      background: none; border: none; cursor: pointer; font-family: inherit; padding: 0;
+      font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted);
+    }
+    .trend-toggle:hover { color: var(--primary); }
+    .trend-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
+    .callout {
+      display: flex; align-items: center; gap: .7rem; cursor: pointer;
+      background: #fff; border: 1px dashed #f9a8d4; border-radius: 14px; padding: .75rem .9rem;
+      font-size: .84rem; color: var(--text2);
+    }
+    .callout:hover { background: #fdf2f8; }
+    .callout b { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════ LOCK SCREEN ══════════════════ -->
+<div id="screen-lock">
+  <div class="lock-card">
+    <div class="lock-icon" id="lock-icon">🔒</div>
+    <h2 class="lock-title" id="lock-title"></h2>
+    <p  class="lock-sub"   id="lock-sub"></p>
+
+    <input type="password" id="lock-pwd"  class="lock-input" placeholder="Password"
+           autocomplete="current-password" enterkeyhint="go">
+    <input type="password" id="lock-conf" class="lock-input" placeholder="Confirm password"
+           autocomplete="new-password" enterkeyhint="go" hidden>
+
+    <div id="lock-err" class="lock-err" hidden></div>
+
+    <button class="btn btn-primary btn-full mt-1" id="lock-btn" onclick="handleUnlock()"></button>
+    <p class="lock-note" id="lock-note"></p>
+  </div>
+</div>
+
+<!-- ══════════════════ APP (hidden until unlock) ══════════════════ -->
+<div id="app" style="display:none">
+
+  <header class="hdr">
+    <span class="hdr-title">💳 Transaction Tracker</span>
+    <div class="hdr-right">
+      <span class="save-ind" id="save-ind">✓ Saved</span>
+      <button class="btn btn-ghost btn-sm" onclick="showBudget()">🎯 Budget</button>
+      <button class="btn btn-ghost btn-sm" onclick="lock()">🔒 Lock</button>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- ─── MAIN SCREEN ─── -->
+    <div id="screen-main" class="screen">
+
+      <div id="alert-box"></div>
+
+      <!-- Upload (collapsible) -->
+      <div class="card">
+        <div class="card-label">
+          <span>Process new files</span>
+          <button class="btn-icon" id="toggle-btn" onclick="toggleUpload()">▲ Collapse</button>
+        </div>
+        <div id="upload-body">
+          <div class="upload-zone" id="drop-zone">
+            <label for="csv-input">
+              <div class="upload-icon">📂</div>
+              <div class="upload-head">Tap to select files</div>
+              <div class="upload-hint">CIBC chequing, savings &amp; Visa CSV exports — re-uploading is safe, duplicates are skipped</div>
+            </label>
+            <input type="file" id="csv-input" multiple>
+          </div>
+
+          <div id="file-card" hidden>
+            <div style="margin:.75rem 0 .4rem;font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700" id="file-label"></div>
+            <ul class="file-list" id="file-list"></ul>
+            <div class="mt-1">
+              <button class="btn btn-danger btn-sm" onclick="clearFiles()">🗑&nbsp; Clear</button>
+            </div>
+          </div>
+
+          <button class="btn btn-primary btn-full mt-1" id="btn-process" disabled onclick="handleProcess()">
+            ⚡&nbsp; Process files
+          </button>
+        </div>
+      </div>
+
+      <!-- Budget setup nudge -->
+      <div id="setup-nudge" hidden></div>
+
+      <!-- Latest month — one slim line -->
+      <div id="latest-section" hidden></div>
+
+      <!-- Monthly history -->
+      <div class="card">
+        <div class="card-label">
+          <span>Monthly history</span>
+          <button class="btn-icon" id="clear-history-btn" onclick="confirmClearHistory()" hidden>🗑 Clear all</button>
+        </div>
+        <div id="history-content"></div>
+      </div>
+
+      <!-- All-time summary -->
+      <div id="alltime-section" hidden>
+        <div class="stat-grid" id="alltime-grid"></div>
+      </div>
+
+      <!-- Trend chart (collapsed by default, needs 3+ months) -->
+      <div class="card" id="trend-card" hidden>
+        <button class="trend-toggle" id="trend-toggle" onclick="toggleTrends()" aria-expanded="false">
+          <span>📈 Trends</span>
+          <span class="chev" id="trend-chev">▾</span>
+        </button>
+        <div id="trend-body" hidden>
+          <div class="legend" id="trend-legend" style="margin-top:.85rem"></div>
+          <div id="trend-chart"></div>
+        </div>
+      </div>
+
+      <div class="footer-links">
+        <button class="btn-subtle" onclick="showBudget()">🎯 Budget &amp; categories</button>
+        <button class="btn-subtle" onclick="showChangePassword()">🔑 Change password</button>
+      </div>
+    </div>
+
+    <!-- ─── DETAIL SCREEN ─── -->
+    <div id="screen-detail" class="screen" hidden>
+      <div class="page-head">
+        <span class="page-title" id="detail-title"></span>
+        <button class="btn btn-ghost btn-sm" onclick="showMain()">← Back</button>
+      </div>
+
+      <div id="detail-hero"></div>
+      <div class="stat-grid" id="detail-stats"></div>
+      <div id="detail-uncat"></div>
+      <div id="detail-savings"></div>
+
+      <div class="card">
+        <div class="card-label"><span>Where your money went</span></div>
+        <div id="detail-donut"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">
+          <span>Budget by category</span>
+          <span class="c-muted" style="text-transform:none;letter-spacing:0;font-weight:500">tap a category for details</span>
+        </div>
+        <div id="detail-cats"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label"><span>Spending pace</span></div>
+        <div class="legend" id="pace-legend"></div>
+        <div id="detail-pace"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Download this month</div>
+        <p class="small muted" style="margin-bottom:.7rem">Every transaction with its account, category and subcategory, plus a budget summary.</p>
+        <div class="dl-col">
+          <button class="btn btn-outline" id="dl-month-btn">
+            ↓&nbsp; <span id="dl-month-label"></span>.csv
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── BUDGET SCREEN ─── -->
+    <div id="screen-budget" class="screen" hidden>
+      <div class="page-head">
+        <span class="page-title">🎯 Budget &amp; categories</span>
+        <button class="btn btn-ghost btn-sm" onclick="backFromBudget()">← Back</button>
+      </div>
+      <div id="budget-content" class="screen"></div>
+    </div>
+
+    <!-- ─── CHANGE PASSWORD SCREEN ─── -->
+    <div id="screen-chpwd" class="screen" hidden>
+      <div class="page-head">
+        <span class="page-title">Change password</span>
+        <button class="btn btn-ghost btn-sm" onclick="showMain()">← Back</button>
+      </div>
+      <div class="card">
+        <div class="card-label">Set a new password</div>
+        <p style="font-size:.875rem;color:var(--muted);margin-bottom:.875rem">
+          Your history and budget will be re-encrypted with the new password.
+        </p>
+        <div class="pw-form">
+          <input type="password" id="chpwd-new"  class="inp" placeholder="New password"     autocomplete="new-password" enterkeyhint="next">
+          <input type="password" id="chpwd-conf" class="inp" placeholder="Confirm password" autocomplete="new-password" enterkeyhint="go">
+          <div id="chpwd-err" class="lock-err" hidden></div>
+          <button class="btn btn-primary btn-full" id="chpwd-btn" onclick="handleChangePassword()">
+            Save new password
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ─── CATEGORIZE MODAL ─── -->
+  <div id="rule-modal" class="modal-bg" hidden onclick="if (event.target === this) closeRuleModal()">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="m-title">
+      <h3 id="m-title">🏷️ Categorize</h3>
+      <div class="ex" id="m-example" hidden></div>
+      <label class="fld">When the description contains
+        <input class="inp" id="m-pattern" placeholder="e.g. UBEREATS, PRES/, 121MMA" oninput="updateRulePreview()" autocomplete="off">
+      </label>
+      <div class="fld-row">
+        <label class="fld">Category
+          <select class="sel" id="m-cat" onchange="fillSubSelect(); updateRulePreview()"></select>
+        </label>
+        <label class="fld">Subcategory
+          <select class="sel" id="m-sub" onchange="toggleNewSub()"></select>
+        </label>
+      </div>
+      <input class="inp" id="m-newsub" placeholder="New subcategory name" hidden>
+      <div class="preview" id="m-preview"></div>
+      <div id="m-err" class="lock-err" hidden></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost btn-sm" onclick="closeRuleModal()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="saveRuleFromModal()">Save rule</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tt" class="tt" role="tooltip" hidden></div>
+</div><!-- /#app -->
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════
+// Constants
+// ═══════════════════════════════════════════════════════════════
+const SAVINGS       = 1;
+const NULL_TRANSFER = 2;
+const EXPENSE       = 3;
+const STORAGE_KEY   = 'tt_v3';        // tracker_2 store: { months, settings }
+const V2_KEY        = 'tt_v2';        // tracker.html store — read-only here, never overwritten
+const LEGACY_KEY    = 'tt_history';
+const PBKDF2_ITERS  = 100_000;
+
+// Categorical palette (fixed order, validated for adjacent-pair CVD separation).
+// A category keeps its slot forever — colour follows the entity, never its rank.
+const SERIES        = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
+const GRAY          = '#a8a29e';
+const SAVINGS_COLOR = '#7c3aed';
+const LINE_COLOR    = '#db2777';
+const STATUS        = { good: '#0ca30c', warning: '#fab219', serious: '#ec835a', critical: '#d03b3b' };
+
+// ═══════════════════════════════════════════════════════════════
+// Default categories & rules
+// ═══════════════════════════════════════════════════════════════
+function defaultCategories() {
+  const sub = (id, name) => ({ id, name, budget: 0 });
+  return [
+    { id: 'transport', name: 'Transportation',     icon: '🚌', slot: 0, kind: 'expense', budget: 0,
+      subs: [sub('rideshare', 'Rideshare (Uber & Lyft)'), sub('transit', 'Transit (Presto)'), sub('travel', 'Travel')] },
+    { id: 'food',      name: 'Food & Dining',      icon: '🍜', slot: 1, kind: 'expense', budget: 0,
+      subs: [sub('delivery', 'Delivery (Uber Eats & co.)'), sub('groceries', 'Groceries'), sub('restaurants', 'Restaurants & cafés')] },
+    { id: 'health',    name: 'Health & Wellness',  icon: '💪', slot: 2, kind: 'expense', budget: 0,
+      subs: [sub('gym', 'Gym & fitness'), sub('pharmacy', 'Pharmacy'), sub('medical', 'Medical & care')] },
+    { id: 'shopping',  name: 'Shopping',           icon: '🛍️', slot: 3, kind: 'expense', budget: 0,
+      subs: [sub('home', 'Home & lifestyle'), sub('clothing', 'Clothing'), sub('beauty', 'Beauty & personal care'), sub('electronics', 'Electronics'), sub('online', 'Online')] },
+    { id: 'bills',     name: 'Bills & Utilities',  icon: '🧾', slot: 4, kind: 'expense', budget: 0,
+      subs: [sub('phone', 'Phone & internet'), sub('utilities', 'Utilities'), sub('insurance', 'Insurance'), sub('fees', 'Bank fees')] },
+    { id: 'people',    name: 'People & E-Transfers', icon: '🤝', slot: 5, kind: 'expense', budget: 0,
+      subs: [sub('etransfer', 'E-Transfers sent')] },
+    { id: 'fun',       name: 'Entertainment & Subscriptions', icon: '🎬', slot: 6, kind: 'expense', budget: 0,
+      subs: [sub('streaming', 'Streaming & games'), sub('software', 'Apps & software'), sub('outings', 'Going out')] },
+    { id: 'misc',      name: 'Miscellaneous',      icon: '📦', slot: -1, kind: 'expense', budget: 0, locked: true, subs: [] },
+    { id: 'savings',   name: 'Savings & Investments', icon: '🐷', slot: -1, kind: 'savings', budget: 0, locked: true,
+      subs: [sub('transfers', 'Savings transfers'), sub('invest', 'Investments')] },
+    { id: 'excluded',  name: 'Not spending (excluded)', icon: '🚫', slot: -1, kind: 'exclude', budget: 0, locked: true, subs: [] },
+  ];
+}
+
+// [pattern, category, subcategory, fallback?]  — matched case-insensitively against the
+// full description, whichever account it came from. Fallback rules only apply when nothing
+// more specific matches (e.g. "UBER" alone, or a generic E-TRANSFER).
+const DEFAULT_RULES = [
+  // Transportation
+  ['UBERTRIP', 'transport', 'rideshare'], ['UBER TRIP', 'transport', 'rideshare'], ['LYFT', 'transport', 'rideshare'],
+  ['UBER', 'transport', 'rideshare', true],
+  ['PRESTO', 'transport', 'transit'], ['PRES/', 'transport', 'transit'], ['METROLINX', 'transport', 'transit'],
+  ['TTC ', 'transport', 'transit'], ['GO TRANSIT', 'transport', 'transit'], ['UP EXPRESS', 'transport', 'transit'], ['BIKE SHARE', 'transport', 'transit'],
+  ['AIR CANADA', 'transport', 'travel'], ['WESTJET', 'transport', 'travel'], ['PORTER AIR', 'transport', 'travel'],
+  ['FLAIR AIR', 'transport', 'travel'], ['VIA RAIL', 'transport', 'travel'], ['FLIXBUS', 'transport', 'travel'], ['MEGABUS', 'transport', 'travel'],
+  // Food & Dining
+  ['UBEREATS', 'food', 'delivery'], ['UBER EATS', 'food', 'delivery'], ['DOORDASH', 'food', 'delivery'],
+  ['SKIPTHEDISHES', 'food', 'delivery'], ['SKIP THE DISHES', 'food', 'delivery'], ['FANTUAN', 'food', 'delivery'],
+  ['METRO', 'food', 'groceries'], ['BULK BARN', 'food', 'groceries'], ['NOFRILLS', 'food', 'groceries'], ['NO FRILLS', 'food', 'groceries'],
+  ['LOBLAWS', 'food', 'groceries'], ['FRESHCO', 'food', 'groceries'], ['FOOD BASICS', 'food', 'groceries'], ['SOBEYS', 'food', 'groceries'],
+  ['FARM BOY', 'food', 'groceries'], ['T&T', 'food', 'groceries'], ['COSTCO', 'food', 'groceries'], ['REAL CANADIAN', 'food', 'groceries'],
+  ['SUPERSTORE', 'food', 'groceries'], ['FORTINOS', 'food', 'groceries'], ['LONGO', 'food', 'groceries'], ['WHOLE FOODS', 'food', 'groceries'],
+  ['H MART', 'food', 'groceries'], ['ADONIS', 'food', 'groceries'], ['INSTACART', 'food', 'groceries'],
+  ['CHEFS HALL', 'food', 'restaurants'], ['TIM HORTONS', 'food', 'restaurants'], ['STARBUCKS', 'food', 'restaurants'],
+  ['MCDONALD', 'food', 'restaurants'], ['A&W', 'food', 'restaurants'], ['SUBWAY', 'food', 'restaurants'], ['CHIPOTLE', 'food', 'restaurants'],
+  ['POPEYES', 'food', 'restaurants'], ['MARY BROWN', 'food', 'restaurants'], ['OSMOW', 'food', 'restaurants'], ['PIZZA', 'food', 'restaurants'],
+  ['DOMINO', 'food', 'restaurants'], ['KFC', 'food', 'restaurants'], ['WENDY', 'food', 'restaurants'], ['TACO BELL', 'food', 'restaurants'],
+  ['BURGER', 'food', 'restaurants'], ['SUSHI', 'food', 'restaurants'], ['CAFE', 'food', 'restaurants'], ['COFFEE', 'food', 'restaurants'],
+  ['BUBBLE TEA', 'food', 'restaurants'], ['RESTAURANT', 'food', 'restaurants'],
+  ['TST-', 'food', 'restaurants', true],   // Toast POS prefix — almost always a restaurant
+  // Health & Wellness
+  ['121MMA', 'health', 'gym'], ['GOODLIFE', 'health', 'gym'], ['FIT4LESS', 'health', 'gym'], ['PLANET FITNESS', 'health', 'gym'],
+  ['ANYTIME FITNESS', 'health', 'gym'], ['YMCA', 'health', 'gym'], ['CLASSPASS', 'health', 'gym'], ['ORANGETHEORY', 'health', 'gym'], ['YOGA', 'health', 'gym'],
+  ['SHOPPERS DRUG', 'health', 'pharmacy'], ['REXALL', 'health', 'pharmacy'], ['PHARMA', 'health', 'pharmacy'], ['DRUG MART', 'health', 'pharmacy'],
+  ['ER DOCTOR', 'health', 'medical'], ['DOCTOR', 'health', 'medical'], ['DENTAL', 'health', 'medical'], ['DENTIST', 'health', 'medical'],
+  ['CLINIC', 'health', 'medical'], ['PHYSIO', 'health', 'medical'], ['OPTOM', 'health', 'medical'], ['MASSAGE', 'health', 'medical'], ['THERAP', 'health', 'medical'],
+  // Shopping
+  ['MUJI', 'shopping', 'home'], ['IKEA', 'shopping', 'home'], ['DOLLARAMA', 'shopping', 'home'], ['WINNERS', 'shopping', 'home'],
+  ['HOMESENSE', 'shopping', 'home'], ['MARSHALLS', 'shopping', 'home'], ['CANADIAN TIRE', 'shopping', 'home'], ['HOME DEPOT', 'shopping', 'home'],
+  ['WALMART', 'shopping', 'home'], ['INDIGO', 'shopping', 'home'],
+  ['UNIQLO', 'shopping', 'clothing'], ['H&M', 'shopping', 'clothing'], ['ZARA', 'shopping', 'clothing'], ['SIMONS', 'shopping', 'clothing'],
+  ['OLD NAVY', 'shopping', 'clothing'], ['ARITZIA', 'shopping', 'clothing'], ['LULULEMON', 'shopping', 'clothing'], ['NIKE', 'shopping', 'clothing'],
+  ['ADIDAS', 'shopping', 'clothing'], ['SPORT CHEK', 'shopping', 'clothing'],
+  ['SEPHORA', 'shopping', 'beauty'], ['BATH & BODY', 'shopping', 'beauty'], ['MAC COSMETICS', 'shopping', 'beauty'],
+  ['BEST BUY', 'shopping', 'electronics'], ['APPLE STORE', 'shopping', 'electronics'], ['CANADA COMPUTERS', 'shopping', 'electronics'],
+  ['MEMORY EXPRESS', 'shopping', 'electronics'], ['STAPLES', 'shopping', 'electronics'],
+  ['AMAZON', 'shopping', 'online'], ['AMZN', 'shopping', 'online'], ['SHEIN', 'shopping', 'online'], ['TEMU', 'shopping', 'online'],
+  ['ETSY', 'shopping', 'online'], ['ALIEXPRESS', 'shopping', 'online'], ['EBAY', 'shopping', 'online'],
+  // Bills & Utilities
+  ['ROGERS', 'bills', 'phone'], ['BELL CANADA', 'bills', 'phone'], ['BELL MOBILITY', 'bills', 'phone'], ['FIDO', 'bills', 'phone'],
+  ['KOODO', 'bills', 'phone'], ['VIRGIN PLUS', 'bills', 'phone'], ['VIRGIN MOBILE', 'bills', 'phone'], ['FREEDOM MOBILE', 'bills', 'phone'],
+  ['TELUS', 'bills', 'phone'], ['PUBLIC MOBILE', 'bills', 'phone'], ['CHATR', 'bills', 'phone'], ['LUCKY MOBILE', 'bills', 'phone'], ['TEKSAVVY', 'bills', 'phone'],
+  ['TORONTO HYDRO', 'bills', 'utilities'], ['ENBRIDGE', 'bills', 'utilities'], ['ALECTRA', 'bills', 'utilities'], ['HYDRO ONE', 'bills', 'utilities'],
+  ['INSURANCE', 'bills', 'insurance'], ['SONNET', 'bills', 'insurance'],
+  ['SERVICE CHARGE', 'bills', 'fees'], ['MONTHLY FEE', 'bills', 'fees'], ['OVERDRAFT', 'bills', 'fees'], ['NSF FEE', 'bills', 'fees'], ['ANNUAL FEE', 'bills', 'fees'],
+  // People
+  ['E-TRANSFER', 'people', 'etransfer', true],
+  // Entertainment & Subscriptions
+  ['NETFLIX', 'fun', 'streaming'], ['SPOTIFY', 'fun', 'streaming'], ['DISNEY', 'fun', 'streaming'], ['CRAVE', 'fun', 'streaming'],
+  ['PRIME VIDEO', 'fun', 'streaming'], ['YOUTUBE', 'fun', 'streaming'], ['APPLE.COM/BILL', 'fun', 'streaming'], ['AUDIBLE', 'fun', 'streaming'],
+  ['STEAM', 'fun', 'streaming'], ['PLAYSTATION', 'fun', 'streaming'], ['NINTENDO', 'fun', 'streaming'], ['XBOX', 'fun', 'streaming'],
+  ['OPENAI', 'fun', 'software'], ['CHATGPT', 'fun', 'software'], ['CLAUDE.AI', 'fun', 'software'], ['ANTHROPIC', 'fun', 'software'],
+  ['ADOBE', 'fun', 'software'], ['MICROSOFT', 'fun', 'software'], ['NOTION', 'fun', 'software'], ['GOOGLE *', 'fun', 'software'],
+  ['CINEPLEX', 'fun', 'outings'], ['TICKETMASTER', 'fun', 'outings'], ['EVENTBRITE', 'fun', 'outings'], ['STUBHUB', 'fun', 'outings'],
+  // Savings & Investments (turns a matched expense into savings)
+  ['WEALTHSIMPLE', 'savings', 'invest'], ['QUESTRADE', 'savings', 'invest'], ['WS INVESTMENTS', 'savings', 'invest'],
+  ['INVESTORLINE', 'savings', 'invest'], ['TFSA', 'savings', 'invest'], ['RRSP', 'savings', 'invest'],
+];
+
+function defaultRules() {
+  return DEFAULT_RULES.map(([pattern, cat, sub, fallback]) =>
+    ({ id: 'b_' + pattern, pattern, cat, sub, builtin: true, fallback: !!fallback }));
+}
+
+function defaultSettings() {
+  return { total: 0, savingsGoal: 0, categories: defaultCategories(), rules: defaultRules() };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// In-memory state
+// ═══════════════════════════════════════════════════════════════
+let activeKey       = null;   // CryptoKey — in-memory only, gone on lock/close
+let currentSalt     = null;
+let store           = { months: {}, settings: defaultSettings() };
+let uploadCollapsed = false;
+let currentMonth    = null;
+let expandedCats    = new Set();
+let openCatEdits    = new Set();
+let budgetReturnTo  = 'main';
+let sortedRules     = [];
+let catMap          = {};
+let monthCache      = {};
+let merchReg        = [];
+
+// ═══════════════════════════════════════════════════════════════
+// Crypto helpers  (Web Crypto API — no external libraries)
+// ═══════════════════════════════════════════════════════════════
+
+function b64Enc(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function b64Dec(str) { return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
+
+async function deriveKey(password, salt) {
+  const enc = new TextEncoder();
+  const raw = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERS, hash: 'SHA-256' },
+    raw,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptJSON(obj, key) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(obj)));
+  return { iv: b64Enc(iv), ct: b64Enc(ct) };
+}
+
+async function decryptJSON(stored, key) {
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64Dec(stored.iv) }, key, b64Dec(stored.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Storage
+// ═══════════════════════════════════════════════════════════════
+
+// Returns { type: 'empty' | 'encrypted' | 'import' | 'legacy', data }
+function detectStorageState() {
+  try {
+    const v3 = localStorage.getItem(STORAGE_KEY);
+    if (v3) {
+      const parsed = JSON.parse(v3);
+      if (parsed.ct) return { type: 'encrypted', data: parsed };
+    }
+    const v2 = localStorage.getItem(V2_KEY);
+    if (v2) {
+      const parsed = JSON.parse(v2);
+      if (parsed.ct) return { type: 'import', data: parsed };
+    }
+    const legacy = localStorage.getItem(LEGACY_KEY);
+    if (legacy) return { type: 'legacy', data: JSON.parse(legacy) };
+  } catch { /* ignore */ }
+  return { type: 'empty' };
+}
+
+async function persist() {
+  if (!activeKey) throw new Error('Not unlocked');
+  const { iv, ct } = await encryptJSON(store, activeKey);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: 3, salt: currentSalt, iv, ct }));
+}
+
+let saveTimer = null;
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    await persist();
+    const ind = document.getElementById('save-ind');
+    ind.classList.add('show');
+    setTimeout(() => ind.classList.remove('show'), 1400);
+  }, 400);
+}
+
+async function setupNew(password, data) {
+  const salt  = crypto.getRandomValues(new Uint8Array(16));
+  currentSalt = b64Enc(salt);
+  activeKey   = await deriveKey(password, salt);
+  store       = normalizeStore(data);
+  await persist();
+}
+
+async function unlockExisting(password, stored) {
+  const key  = await deriveKey(password, b64Dec(stored.salt));
+  // AES-GCM throws OperationError if password is wrong — that's our wrong-password signal
+  const data = await decryptJSON(stored, key);
+  activeKey   = key;
+  currentSalt = stored.salt;
+  store       = normalizeStore(data);
+}
+
+// tracker.html history shape: { 'YYYY-MM': { income, expense, savings, balance, transactions } }
+function convertLegacyHistory(h) {
+  const months = {};
+  for (const [mo, d] of Object.entries(h || {})) {
+    months[mo] = {
+      transactions: (d.transactions || []).map(t => ({
+        date: t.date, name: t.name, raw: t.raw || t.name, account: t.account || '',
+        savings: t.savings || 0, expense: t.expense || 0, income: t.income || 0,
+      })),
+    };
+  }
+  return months;
+}
+
+function normalizeStore(data) {
+  const s = { months: data?.months || {}, settings: data?.settings || defaultSettings() };
+  const st = s.settings;
+  st.total       = +st.total || 0;
+  st.savingsGoal = +st.savingsGoal || 0;
+  st.categories  = st.categories?.length ? st.categories : defaultCategories();
+  st.rules       = Array.isArray(st.rules) ? st.rules : defaultRules();
+  // The fallback buckets must always exist
+  for (const req of defaultCategories().filter(c => c.locked))
+    if (!st.categories.some(c => c.id === req.id)) st.categories.push(req);
+  return s;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Core logic  (base rules mirror cat_trans.py exactly)
+// ═══════════════════════════════════════════════════════════════
+
+function nameProcessing(name) {
+  if (name.includes('Internet Banking INTERNET TRANSFER'))
+    return ['Internet Banking INTERNET TRANSFER', NULL_TRANSFER];
+  if (/E-TRANSFER\s+.*?\s+MeeeW/.test(name))
+    return ['Internet Banking E-TRANSFER MeeeW', SAVINGS];
+  if (name === 'Electronic Funds Transfer PREAUTHORIZED DEBIT SPECIAL DEPOSIT')
+    return ['Electronic Funds Transfer PREAUTHORIZED DEBIT SPECIAL DEPOSIT', SAVINGS];
+  if (name === 'PAYMENT THANK YOU/PAIEMEN T MERCI')
+    return ['PAYMENT THANK YOU/PAIEMEN T MERCI', NULL_TRANSFER];
+  return [name.trim(), EXPENSE];
+}
+
+function parseCSVText(text) {
+  const rows  = [];
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const fields = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (c === ',' && !inQ) { fields.push(cur); cur = ''; }
+      else cur += c;
+    }
+    fields.push(cur);
+    rows.push(fields);
+  }
+  return rows;
+}
+
+function parseLocalDate(str) {
+  const p = str.trim().split('-').map(Number);
+  if (p.length !== 3 || p.some(isNaN)) return null;
+  return new Date(p[0], p[1] - 1, p[2]);
+}
+
+function fmtDate(d)  {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function fmtMonth(d) { return fmtDate(d).slice(0, 7); }
+
+function monthLabel(mo) {
+  const [y, m] = mo.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });
+}
+function monthShort(mo) {
+  const [y, m] = mo.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-CA', { month: 'short' });
+}
+function daysInMonth(mo) {
+  const [y, m] = mo.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}
+function isCurrentMonth(mo) { return mo === fmtMonth(new Date()); }
+function elapsedDays(mo)    { return isCurrentMonth(mo) ? new Date().getDate() : daysInMonth(mo); }
+
+// Which account a file came from — Visa rows carry a masked card number in column 5;
+// otherwise fall back to the file name.
+function guessAccount(fileName) {
+  const n = fileName.toLowerCase();
+  if (/visa|credit|mastercard/.test(n)) return 'Visa';
+  if (/sav/.test(n))                    return 'Savings';
+  if (/cheq|chq|check/.test(n))         return 'Chequing';
+  return 'Debit';
+}
+
+function readTransactions(csvText, fileAccount = '') {
+  return parseCSVText(csvText).reduce((txs, row) => {
+    if (row.length < 4) return txs;
+    const [dateStr, name, expense, income, card] = row;
+    const date = parseLocalDate(dateStr);
+    if (!date) return txs;
+    const [catName, catType] = nameProcessing(name);
+    const cardMatch = (card || '').match(/\d{4}\*+(\d{4})/);
+    txs.push({
+      date:    fmtDate(date),
+      name:    catName,
+      raw:     name.trim(),
+      account: cardMatch ? `Visa ••${cardMatch[1]}` : fileAccount,
+      savings: catType === SAVINGS       && expense.trim() ? parseFloat(expense) || 0 : 0,
+      expense: catType === EXPENSE       && expense.trim() ? parseFloat(expense) || 0 : 0,
+      income:  catType !== NULL_TRANSFER && income.trim()  ? parseFloat(income)  || 0 : 0,
+    });
+    return txs;
+  }, []);
+}
+
+// Merge new uploads into a month without double-counting. Transactions are grouped by
+// (date, name, amounts); for each group we keep whichever side has more rows, so
+// re-uploading the same export (or an overlapping one) is harmless while genuine
+// same-day repeats (e.g. two $3.30 Presto taps) survive.
+function txKey(t) {
+  return [t.date, t.name, (+t.expense || 0).toFixed(2), (+t.income || 0).toFixed(2), (+t.savings || 0).toFixed(2)].join('|');
+}
+function mergeTransactions(existing, incoming) {
+  const groups = new Map();
+  for (const t of existing) { const k = txKey(t); if (!groups.has(k)) groups.set(k, { a: [], b: [] }); groups.get(k).a.push(t); }
+  for (const t of incoming) { const k = txKey(t); if (!groups.has(k)) groups.set(k, { a: [], b: [] }); groups.get(k).b.push(t); }
+  const out = [];
+  let added = 0;
+  for (const { a, b } of groups.values()) {
+    if (b.length >= a.length) { out.push(...b); added += b.length - a.length; }
+    else out.push(...a);
+  }
+  out.sort((x, y) => x.date.localeCompare(y.date));
+  return { merged: out, added };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Categorization
+// ═══════════════════════════════════════════════════════════════
+
+function refreshRules() {
+  catMap = Object.fromEntries(store.settings.categories.map(c => [c.id, c]));
+  sortedRules = store.settings.rules
+    .filter(r => r.pattern && catMap[r.cat])
+    .map(r => ({ ...r, P: r.pattern.toUpperCase(), tier: r.builtin ? (r.fallback ? 2 : 1) : 0 }))
+    // Your own rules win, then built-ins, then fallbacks; inside a tier the most specific (longest) match wins
+    .sort((a, b) => a.tier - b.tier || b.P.length - a.P.length);
+  monthCache = {};
+}
+
+function catById(id)   { return catMap[id]; }
+function subName(cat, subId) {
+  if (!subId) return cat.id === 'misc' ? 'Uncategorized' : 'Other';
+  return cat.subs.find(s => s.id === subId)?.name || 'Other';
+}
+function catColor(cat) {
+  if (!cat) return GRAY;
+  if (cat.kind === 'savings') return SAVINGS_COLOR;
+  return cat.slot >= 0 ? SERIES[cat.slot] : GRAY;
+}
+
+function matchRule(text, filter) {
+  const hay = String(text || '').toUpperCase();
+  for (const r of sortedRules) {
+    if (filter && !filter(r)) continue;
+    if (hay.includes(r.P)) return r;
+  }
+  return null;
+}
+
+function validSub(cat, subId) { return subId && cat.subs.some(s => s.id === subId) ? subId : null; }
+
+function classify(t) {
+  const text = t.raw || t.name;
+  if (t.savings > 0) {
+    const r = matchRule(text, r => catById(r.cat).kind === 'savings');
+    const cat = r ? catById(r.cat) : catById('savings');
+    return { kind: 'savings', cat: cat.id, sub: r ? validSub(cat, r.sub) : validSub(cat, 'transfers'), rule: r };
+  }
+  if (t.expense > 0) {
+    const r   = matchRule(text);
+    const cat = r ? catById(r.cat) : catById('misc');
+    return { kind: cat.kind, cat: cat.id, sub: r ? validSub(cat, r.sub) : null, rule: r };
+  }
+  if (t.income > 0) return { kind: 'income' };
+  return { kind: 'transfer' };
+}
+
+// Turns "Point of Sale - Interac RETAIL PURCHASE 001001001236 SHOPPERS DRUG M" into
+// "SHOPPERS DRUG M", "PRES/SS6ZG267VF" into "PRES", "METRO 37 TORONTO, ON" into "METRO", etc.
+function cleanDesc(raw) {
+  let s = String(raw || '').trim();
+  let prefix = '';
+  // Presto taps: "PRES/SS6ZG267VF" — the code after the slash changes every tap
+  if (/\bPRES\/\S+/.test(s)) return { label: 'PRESTO fare (tap)', pattern: 'PRES/' };
+  if (/E-TRANSFER/i.test(s)) { s = s.replace(/^.*?E-TRANSFER\s+\S*\d\S*\s*/i, ''); prefix = 'E-Transfer → '; }
+  s = s.replace(/^Point of Sale - Interac\s+(RETAIL PURCHASE|PURCHASE)?\s*\S*\d\S*\s+/i, '')
+       .replace(/^Electronic Funds Transfer\s+(PREAUTHORIZED DEBIT|PREAUTHORIZED CREDIT|PAY|DEPOSIT)?\s*/i, '')
+       .replace(/^(Internet Banking|Branch Transaction|Automated Banking Machine|ABM)\s+/i, '')
+       .replace(/\/(?=\S*\d)\S+/g, '')
+       .replace(/\b\d{2}-\d{2}\b/g, '')
+       .replace(/\s#?\d+\b/g, '')
+       .replace(/\s+[A-Z .'-]+,\s*[A-Z]{2}$/, '')
+       .replace(/\s{2,}/g, ' ').trim();
+  if (!s) s = String(raw || '').trim();
+  return { label: prefix + s, pattern: s };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Month analytics
+// ═══════════════════════════════════════════════════════════════
+
+function computeMonth(mo) {
+  if (monthCache[mo]) return monthCache[mo];
+  const txs = store.months[mo]?.transactions || [];
+  const s = { mo, income: 0, expense: 0, savings: 0, excluded: 0, cats: {}, daily: {}, items: [] };
+  for (const t of txs) {
+    const c = classify(t);
+    s.items.push({ t, c });
+    s.income += t.income || 0;
+    let amt = 0;
+    if (c.kind === 'expense') {
+      amt = t.expense; s.expense += amt;
+      const d = +t.date.slice(8, 10);
+      s.daily[d] = (s.daily[d] || 0) + amt;
+    } else if (c.kind === 'savings') { amt = t.savings || t.expense; s.savings += amt; }
+    else if (c.kind === 'exclude')   { amt = t.expense; s.excluded += amt; }
+    if (amt > 0) addToBucket(s, c, t, amt);
+  }
+  s.balance = s.income - s.expense - s.savings;
+  return (monthCache[mo] = s);
+}
+
+function addToBucket(s, c, t, amt) {
+  const b = s.cats[c.cat] ||= { spent: 0, n: 0, subs: {}, merchants: {} };
+  b.spent += amt; b.n++;
+  const sk = c.sub || '_none';
+  b.subs[sk] = (b.subs[sk] || 0) + amt;
+  const m  = cleanDesc(t.raw || t.name);
+  const mk = m.label.toUpperCase();
+  const mm = b.merchants[mk] ||= { label: m.label, pattern: m.pattern, raw: t.raw || t.name, amt: 0, n: 0, cat: c.cat, sub: c.sub };
+  mm.amt += amt; mm.n++;
+}
+
+function catBudget(cat) {
+  return (+cat.budget || 0) || cat.subs.reduce((a, s) => a + (+s.budget || 0), 0);
+}
+function expenseCats() { return store.settings.categories.filter(c => c.kind === 'expense'); }
+function totalBudget() {
+  return store.settings.total || expenseCats().reduce((a, c) => a + catBudget(c), 0);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Status logic
+// ═══════════════════════════════════════════════════════════════
+
+function monthStatus(spent, budget, mo) {
+  if (!budget) return { key: 'none', icon: '○', label: 'No budget set' };
+  if (spent > budget) return { key: 'critical', icon: '▲', label: 'Over budget' };
+  if (isCurrentMonth(mo)) {
+    const proj = spent / Math.max(1, elapsedDays(mo)) * daysInMonth(mo);
+    return proj > budget * 1.02
+      ? { key: 'serious', icon: '↗', label: 'Trending over', proj }
+      : { key: 'good',    icon: '✓', label: 'On track',      proj };
+  }
+  if (spent >= budget * .9) return { key: 'good', icon: '✓', label: 'Budget met' };
+  return { key: 'good', icon: '★', label: 'Under budget' };
+}
+
+function catStatus(spent, budget) {
+  if (!budget) return { key: 'none', icon: '○', label: 'No budget' };
+  const p = spent / budget;
+  if (p > 1)    return { key: 'critical', icon: '▲', label: `Over by ${fmt0(spent - budget)}` };
+  if (p >= .85) return { key: 'warning',  icon: '●', label: `${Math.round(p * 100)}% used` };
+  return { key: 'good', icon: '✓', label: `${Math.round(p * 100)}% used` };
+}
+
+function savingsStatus(saved, goal, mo) {
+  if (!goal) return { key: 'none', icon: '○', label: 'No goal set' };
+  if (saved >= goal) return saved > goal * 1.05
+    ? { key: 'good', icon: '★', label: 'Goal exceeded' }
+    : { key: 'good', icon: '✓', label: 'Goal met' };
+  if (isCurrentMonth(mo)) return { key: 'warning', icon: '●', label: 'In progress' };
+  if (saved >= goal * .75) return { key: 'warning', icon: '●', label: 'Almost there' };
+  return { key: 'serious', icon: '▼', label: 'Short of goal' };
+}
+
+function chip(st, lg = false) {
+  return `<span class="chip chip-${st.key}${lg ? ' chip-lg' : ''}"><span class="ci" aria-hidden="true">${st.icon}</span>${esc(st.label)}</span>`;
+}
+
+function meterHTML(spent, budget, color, opts = {}) {
+  const cls = 'meter' + (opts.size ? ' ' + opts.size : '');
+  const tick = opts.tick != null ? `<div class="meter-tick" style="left:calc(${(opts.tick * 100).toFixed(2)}% - 1px)" title="Where you'd be at an even pace"></div>` : '';
+  if (!budget) {
+    const w = opts.rel != null ? Math.max(spent > 0 ? 2 : 0, opts.rel * 100) : 0;
+    return `<div class="${cls}"><div class="meter-fill" style="width:${w}%;background:${color};opacity:.55"></div></div>`;
+  }
+  if (spent <= budget) {
+    const w = Math.max(spent > 0 ? 2 : 0, spent / budget * 100);
+    return `<div class="${cls}"><div class="meter-fill" style="width:${w}%;background:${color}"></div>${tick}</div>`;
+  }
+  // Over budget: the budgeted part in the category colour, the overflow hatched in critical red
+  const within = budget / spent * 100;
+  return `<div class="${cls}" title="Over budget"><div class="meter-fill" style="width:calc(${within}% - 2px);background:${color};border-radius:999px 0 0 999px"></div><div class="meter-over"></div></div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CSV generation
+// ═══════════════════════════════════════════════════════════════
+
+function csvField(v) {
+  const s = String(v ?? '');
+  return (s.includes(',') || s.includes('"') || s.includes('\n')) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+function csvRow(f) { return f.map(csvField).join(','); }
+const r2 = n => Math.round(n * 100) / 100;
+
+function buildMonthDetailCSV(mo) {
+  const s = computeMonth(mo);
+  const lines = ['date,description,account,category,subcategory,savings,expense,income'];
+  for (const { t, c } of [...s.items].sort((a, b) => a.t.date.localeCompare(b.t.date))) {
+    let cat = '', sub = '';
+    if (c.cat)                       { const k = catById(c.cat); cat = k.name; sub = subName(k, c.sub); }
+    else if (c.kind === 'income')    cat = 'Income';
+    else if (c.kind === 'transfer')  cat = 'Internal transfer';
+    lines.push(csvRow([t.date, t.raw || t.name, t.account || '', cat, sub, t.savings || '', t.expense || '', t.income || '']));
+  }
+  const budget = totalBudget();
+  lines.push('', 'SUMMARY');
+  lines.push(csvRow(['Income', r2(s.income)]));
+  lines.push(csvRow(['Expense', r2(s.expense)]));
+  lines.push(csvRow(['Savings', r2(s.savings)]));
+  lines.push(csvRow(['Balance', r2(s.balance)]));
+  if (budget) lines.push(csvRow(['Spending budget', budget, 'Status', monthStatus(s.expense, budget, mo).label]));
+  if (store.settings.savingsGoal) lines.push(csvRow(['Savings goal', store.settings.savingsGoal, 'Status', savingsStatus(s.savings, store.settings.savingsGoal, mo).label]));
+  lines.push('', 'category,subcategory,spent,budget,remaining');
+  for (const cat of store.settings.categories) {
+    const b = s.cats[cat.id];
+    const cb = catBudget(cat);
+    if (!b && !cb) continue;
+    lines.push(csvRow([cat.name, '', r2(b?.spent || 0), cb || '', cb ? r2(cb - (b?.spent || 0)) : '']));
+    for (const sub of cat.subs) {
+      const sp = b?.subs[sub.id] || 0;
+      if (sp || sub.budget) lines.push(csvRow(['', sub.name, r2(sp), sub.budget || '', sub.budget ? r2(sub.budget - sp) : '']));
+    }
+    if (b?.subs._none) lines.push(csvRow(['', subName(cat, null), r2(b.subs._none), '', '']));
+  }
+  return lines.join('\n');
+}
+
+function downloadBlob(filename, content) {
+  const blob = new Blob(['﻿' + content], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Formatting
+// ═══════════════════════════════════════════════════════════════
+
+function fmt(n, dec = 2) {
+  return (n < 0 ? '-' : '') + '$' +
+    Math.abs(n).toLocaleString('en-CA', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+function fmt0(n)     { return fmt(n, 0); }
+function fmtShort(n) { return (n < 0 ? '-' : '') + Math.abs(n).toLocaleString('en-CA', { maximumFractionDigits: 0 }); }
+function fmtAxis(n)  { return n >= 1000 ? '$' + (n / 1000).toLocaleString('en-CA', { maximumFractionDigits: 1 }) + 'k' : '$' + Math.round(n); }
+function pct(a, b)   { return b ? Math.round(a / b * 100) : 0; }
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function uid() { return Math.random().toString(36).slice(2, 9); }
+function niceMax(v) {
+  if (v <= 0) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * p >= v) return m * p;
+  return 10 * p;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Tooltip
+// ═══════════════════════════════════════════════════════════════
+
+const tt = () => document.getElementById('tt');
+function showTip(x, y, title, rows) {
+  const el = tt();
+  el.innerHTML = (title ? `<div class="tt-title">${esc(title)}</div>` : '') +
+    rows.map(r => `<div class="tt-row">${r.color ? `<i class="tt-key" style="background:${r.color}"></i>` : ''}<b>${esc(r.value)}</b><span>${esc(r.label)}</span></div>`).join('');
+  el.hidden = false;
+  const w = el.offsetWidth, h = el.offsetHeight;
+  let left = x + 14, top = y - h - 10;
+  if (left + w > window.innerWidth - 8) left = x - w - 14;
+  if (top < 8) top = y + 16;
+  el.style.left = Math.max(8, left) + 'px';
+  el.style.top  = top + 'px';
+}
+function hideTip() { tt().hidden = true; }
+function tipAtElement(el, title, rows) {
+  const r = el.getBoundingClientRect();
+  showTip(r.left + r.width / 2, r.top, title, rows);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Charts (hand-rolled SVG — no external libraries)
+// ═══════════════════════════════════════════════════════════════
+
+function arcPath(cx, cy, r0, r1, a0, a1) {
+  const p = (r, a) => [cx + r * Math.sin(a), cy - r * Math.cos(a)];
+  const large = a1 - a0 > Math.PI ? 1 : 0;
+  const [x0, y0] = p(r1, a0), [x1, y1] = p(r1, a1), [x2, y2] = p(r0, a1), [x3, y3] = p(r0, a0);
+  return `M${x0},${y0} A${r1},${r1} 0 ${large} 1 ${x1},${y1} L${x2},${y2} A${r0},${r0} 0 ${large} 0 ${x3},${y3} Z`;
+}
+
+function barPath(x, y, w, h, r = 4) {
+  if (h <= 0) return '';
+  r = Math.min(r, h, w / 2);
+  return `M${x},${y + h} V${y + r} Q${x},${y} ${x + r},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h} Z`;
+}
+
+// Part-to-whole: share of the month's spending by category (≤ 6 segments, tail folds into "Other")
+function renderDonut(el, s) {
+  let segs = expenseCats()
+    .map(c => ({ id: c.id, name: c.name, icon: c.icon, color: catColor(c), amt: s.cats[c.id]?.spent || 0 }))
+    .filter(x => x.amt > 0)
+    .sort((a, b) => b.amt - a.amt);
+  if (!segs.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🌸</div><div class="empty-text">No spending recorded this month</div></div>`;
+    return;
+  }
+  if (segs.length > 6) {
+    const head = segs.filter(x => x.id !== 'misc').slice(0, 5);
+    const rest = segs.filter(x => !head.includes(x));
+    segs = [...head, { id: '_other', name: `Other (${rest.length})`, icon: '•', color: GRAY, amt: rest.reduce((a, x) => a + x.amt, 0) }];
+  }
+  const total = segs.reduce((a, x) => a + x.amt, 0);
+  const cx = 90, cy = 90, r1 = 84, r0 = 58;
+  let a = 0;
+  const paths = segs.map((x, i) => {
+    const sweep = x.amt / total * Math.PI * 2;
+    const a0 = a, a1 = a + Math.min(sweep, Math.PI * 2 - 0.0001);
+    a += sweep;
+    return `<path d="${arcPath(cx, cy, r0, r1, a0, a1)}" fill="${x.color}" stroke="#fff" stroke-width="2" data-i="${i}" tabindex="0" style="cursor:default;transition:opacity .15s"></path>`;
+  }).join('');
+  const top = segs[0];
+  el.innerHTML = `
+    <div class="donut-wrap">
+      <svg viewBox="0 0 180 180" class="chart" role="img" aria-label="Spending by category">
+        ${paths}
+        <text x="90" y="84" text-anchor="middle" font-size="19" font-weight="800" fill="#1f2937">${esc(fmt0(total))}</text>
+        <text x="90" y="103" text-anchor="middle" font-size="10.5" fill="#6b7280">spent</text>
+      </svg>
+      <div class="donut-legend">
+        ${segs.map((x, i) => `
+          <div class="dl-row" data-i="${i}">
+            <span class="lk-rect" style="background:${x.color}"></span>
+            <span class="nm">${esc(x.icon)} ${esc(x.name)}</span>
+            <span class="pc">${pct(x.amt, total)}%</span>
+            <span class="am">${fmt0(x.amt)}</span>
+          </div>`).join('')}
+        <div class="small muted" style="margin-top:.2rem">Most of your money went to <b style="color:var(--text)">${esc(top.name)}</b> (${pct(top.amt, total)}%).</div>
+      </div>
+    </div>`;
+  const pathsEls = el.querySelectorAll('path[data-i]');
+  const highlight = i => pathsEls.forEach(p => p.style.opacity = (i == null || +p.dataset.i === i) ? '1' : '.35');
+  const tipFor = (i, ev, node) => {
+    const x = segs[i];
+    const rows = [{ color: x.color, value: fmt(x.amt), label: `${pct(x.amt, total)}% of spending` }];
+    ev ? showTip(ev.clientX, ev.clientY, x.name, rows) : tipAtElement(node, x.name, rows);
+  };
+  el.querySelectorAll('[data-i]').forEach(node => {
+    const i = +node.dataset.i;
+    node.addEventListener('pointermove', ev => { highlight(i); tipFor(i, ev); });
+    node.addEventListener('focus',       () => { highlight(i); tipFor(i, null, node); });
+    node.addEventListener('pointerleave', () => { highlight(null); hideTip(); });
+    node.addEventListener('blur',         () => { highlight(null); hideTip(); });
+  });
+}
+
+// Cumulative spending through the month against an even budget pace
+function renderPace(el, legendEl, mo, s, budget) {
+  const dim = daysInMonth(mo), cur = isCurrentMonth(mo);
+  const lastDay = elapsedDays(mo);
+  const cum = [0];
+  for (let d = 1; d <= dim; d++) cum[d] = cum[d - 1] + (s.daily[d] || 0);
+  const spentNow = cum[lastDay];
+  const proj = cur ? spentNow / Math.max(1, lastDay) * dim : null;
+  const yMax = niceMax(Math.max(budget || 0, cum[dim], proj || 0, 1) * 1.06);
+
+  const W = 600, H = 230, pl = 46, pr = 16, pt = 14, pb = 28;
+  const pw = W - pl - pr, ph = H - pt - pb;
+  const x = d => pl + d / dim * pw;
+  const y = v => pt + (1 - v / yMax) * ph;
+
+  const ticks = [0, .25, .5, .75, 1].map(f => f * yMax);
+  const grid = ticks.map(v => `
+    <line x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}" stroke="${v ? '#f3e8ef' : '#e5d5de'}" stroke-width="1"/>
+    <text x="${pl - 8}" y="${y(v) + 3.5}" text-anchor="end" font-size="10.5" fill="#9ca3af">${fmtAxis(v)}</text>`).join('');
+  const xt = [1, 8, 15, 22, dim].map(d => `<text x="${x(d)}" y="${H - 8}" text-anchor="middle" font-size="10.5" fill="#9ca3af">${monthShort(mo)} ${d}</text>`).join('');
+
+  let line = `M${x(0)},${y(0)}`;
+  for (let d = 1; d <= lastDay; d++) line += ` L${x(d)},${y(cum[d])}`;
+  const area = line + ` L${x(lastDay)},${y(0)} Z`;
+
+  const budgetMarks = budget ? `
+    <line x1="${x(0)}" y1="${y(0)}" x2="${x(dim)}" y2="${y(budget)}" stroke="#9ca3af" stroke-width="1.5"/>
+    <line x1="${pl}" x2="${W - pr}" y1="${y(budget)}" y2="${y(budget)}" stroke="${STATUS.critical}" stroke-width="1" stroke-dasharray="5 4" opacity=".7"/>
+    <text x="${W - pr}" y="${y(budget) - 6}" text-anchor="end" font-size="10.5" fill="#9f1239" font-weight="600">Budget ${fmt0(budget)}</text>` : '';
+  const projMark = cur && lastDay < dim ? `
+    <line x1="${x(lastDay)}" y1="${y(spentNow)}" x2="${x(dim)}" y2="${y(proj)}" stroke="${LINE_COLOR}" stroke-width="2" stroke-dasharray="4 4" opacity=".55"/>
+    <circle cx="${x(dim)}" cy="${y(proj)}" r="4" fill="#fff" stroke="${LINE_COLOR}" stroke-width="2" opacity=".7"/>` : '';
+
+  el.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="Cumulative spending this month">
+      ${grid}${xt}
+      <path d="${area}" fill="${LINE_COLOR}" opacity=".07"/>
+      ${budgetMarks}
+      ${projMark}
+      <path d="${line}" fill="none" stroke="${LINE_COLOR}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="${x(lastDay)}" cy="${y(spentNow)}" r="4.5" fill="${LINE_COLOR}" stroke="#fff" stroke-width="2"/>
+      <g class="xh" style="display:none">
+        <line class="xh-l" y1="${pt}" y2="${pt + ph}" stroke="#6b7280" stroke-width="1"/>
+        <circle class="xh-d" r="4.5" fill="${LINE_COLOR}" stroke="#fff" stroke-width="2"/>
+      </g>
+      <rect class="hit" x="${pl}" y="${pt}" width="${pw}" height="${ph}" fill="transparent"/>
+    </svg>`;
+
+  legendEl.innerHTML =
+    `<span><i class="lk-line" style="background:${LINE_COLOR}"></i>Spent so far</span>` +
+    (budget ? `<span><i class="lk-line" style="background:#9ca3af"></i>Even budget pace</span><span><i class="lk-dash" style="border-color:${STATUS.critical}"></i>Budget limit</span>` : '') +
+    (cur && lastDay < dim ? `<span><i class="lk-dash" style="border-color:${LINE_COLOR}"></i>Projected</span>` : '');
+
+  const svg = el.querySelector('svg'), xh = svg.querySelector('.xh'),
+        xl = svg.querySelector('.xh-l'), xd = svg.querySelector('.xh-d');
+  const move = ev => {
+    const r = svg.getBoundingClientRect();
+    const vx = (ev.clientX - r.left) / r.width * W;
+    const d = Math.max(1, Math.min(dim, Math.round((vx - pl) / pw * dim)));
+    const known = d <= lastDay;
+    const v = known ? cum[d] : (proj != null ? spentNow + (proj - spentNow) * (d - lastDay) / (dim - lastDay) : cum[d]);
+    xh.style.display = '';
+    xl.setAttribute('x1', x(d)); xl.setAttribute('x2', x(d));
+    xd.setAttribute('cx', x(d)); xd.setAttribute('cy', y(v));
+    xd.style.opacity = known ? '1' : '.5';
+    const rows = [{ color: LINE_COLOR, value: fmt(v), label: known ? 'spent so far' : 'projected' }];
+    if (known && s.daily[d]) rows.push({ value: fmt(s.daily[d]), label: 'spent that day' });
+    if (budget) rows.push({ color: '#9ca3af', value: fmt(budget * d / dim), label: 'even pace' });
+    showTip(ev.clientX, ev.clientY, `${monthShort(mo)} ${d}`, rows);
+  };
+  const hit = svg.querySelector('.hit');
+  hit.addEventListener('pointermove', move);
+  hit.addEventListener('pointerdown', move);
+  hit.addEventListener('pointerleave', () => { xh.style.display = 'none'; hideTip(); });
+}
+
+// Month-over-month spending bars with the budget as a threshold line
+function renderTrend() {
+  const card = document.getElementById('trend-card');
+  const keys = Object.keys(store.months).sort().slice(-12);
+  if (keys.length < 3) { card.hidden = true; return; }
+  card.hidden = false;
+  const open = !!store.settings.ui?.trendsOpen;
+  document.getElementById('trend-toggle').setAttribute('aria-expanded', open);
+  document.getElementById('trend-body').hidden = !open;
+  if (!open) return;
+  const budget = totalBudget();
+  const data = keys.map(mo => ({ mo, s: computeMonth(mo) }));
+  const yMax = niceMax(Math.max(budget, ...data.map(d => d.s.expense), 1) * 1.12);
+
+  const W = 600, H = 210, pl = 46, pr = 10, pt = 16, pb = 28;
+  const pw = W - pl - pr, ph = H - pt - pb;
+  const y = v => pt + (1 - v / yMax) * ph;
+  const col = pw / data.length;
+  const bw = Math.min(38, col - 6);
+
+  const grid = [0, .5, 1].map(f => f * yMax).map(v => `
+    <line x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}" stroke="${v ? '#f3e8ef' : '#e5d5de'}"/>
+    <text x="${pl - 8}" y="${y(v) + 3.5}" text-anchor="end" font-size="10.5" fill="#9ca3af">${fmtAxis(v)}</text>`).join('');
+
+  const bars = data.map((d, i) => {
+    const cx = pl + col * i + col / 2;
+    const over = budget && d.s.expense > budget;
+    const cur = isCurrentMonth(d.mo);
+    const h = ph - (y(d.s.expense) - pt);
+    const color = over ? STATUS.critical : '#ec4899';
+    const showYear = i === 0 || d.mo.slice(5) === '01';
+    return `
+      <g data-i="${i}" tabindex="0" style="cursor:pointer">
+        <rect x="${pl + col * i}" y="${pt}" width="${col}" height="${ph}" fill="transparent"/>
+        <path class="bar" d="${barPath(cx - bw / 2, y(d.s.expense), bw, h)}" fill="${color}" opacity="${cur ? .55 : 1}"/>
+        ${over ? `<text x="${cx}" y="${y(d.s.expense) - 5}" text-anchor="middle" font-size="10" fill="${STATUS.critical}" font-weight="700">▲</text>` : ''}
+        <text x="${cx}" y="${H - 10}" text-anchor="middle" font-size="10.5" fill="#6b7280">${monthShort(d.mo)}${showYear ? ` '${d.mo.slice(2, 4)}` : ''}</text>
+      </g>`;
+  }).join('');
+
+  const bl = budget ? `
+    <line x1="${pl}" x2="${W - pr}" y1="${y(budget)}" y2="${y(budget)}" stroke="${STATUS.critical}" stroke-dasharray="5 4" opacity=".7"/>
+    <text x="${W - pr}" y="${y(budget) - 5}" text-anchor="end" font-size="10.5" fill="#9f1239" font-weight="600">Budget ${fmt0(budget)}</text>` : '';
+
+  document.getElementById('trend-chart').innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="Monthly spending">${grid}${bars}${bl}</svg>`;
+  document.getElementById('trend-legend').innerHTML =
+    `<span><i class="lk-rect" style="background:#ec4899"></i>Spent</span>` +
+    (budget ? `<span><i class="lk-rect" style="background:${STATUS.critical}"></i>▲ Over budget</span><span><i class="lk-dash" style="border-color:${STATUS.critical}"></i>Monthly budget</span>` : '') +
+    (data.some(d => isCurrentMonth(d.mo)) ? `<span><i class="lk-rect" style="background:#ec4899;opacity:.55"></i>This month so far</span>` : '');
+
+  document.querySelectorAll('#trend-chart g[data-i]').forEach(g => {
+    const d = data[+g.dataset.i];
+    const rows = () => {
+      const r = [{ color: budget && d.s.expense > budget ? STATUS.critical : '#ec4899', value: fmt(d.s.expense), label: 'spent' }];
+      if (budget) r.push({ value: fmt(budget - d.s.expense), label: d.s.expense > budget ? 'over budget' : 'left in budget' });
+      r.push({ color: SAVINGS_COLOR, value: fmt(d.s.savings), label: 'saved' });
+      return r;
+    };
+    const bar = g.querySelector('.bar');
+    g.addEventListener('pointermove', ev => { bar.style.filter = 'brightness(1.12)'; showTip(ev.clientX, ev.clientY, monthLabel(d.mo), rows()); });
+    g.addEventListener('focus',        () => { bar.style.filter = 'brightness(1.12)'; tipAtElement(g, monthLabel(d.mo), rows()); });
+    g.addEventListener('pointerleave', () => { bar.style.filter = ''; hideTip(); });
+    g.addEventListener('blur',         () => { bar.style.filter = ''; hideTip(); });
+    g.addEventListener('click',        () => { hideTip(); openMonth(d.mo); });
+    g.addEventListener('keydown',      ev => { if (ev.key === 'Enter') openMonth(d.mo); });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Lock screen
+// ═══════════════════════════════════════════════════════════════
+
+function renderLockScreen() {
+  const state = detectStorageState();
+  const conf  = document.getElementById('lock-conf');
+  const title = document.getElementById('lock-title');
+  const sub   = document.getElementById('lock-sub');
+  const btn   = document.getElementById('lock-btn');
+  const note  = document.getElementById('lock-note');
+  const icon  = document.getElementById('lock-icon');
+
+  document.getElementById('lock-err').hidden = true;
+  document.getElementById('lock-pwd').value  = '';
+  conf.value = '';
+
+  if (state.type === 'encrypted') {
+    icon.textContent  = '🔒';
+    title.textContent = 'Welcome back';
+    sub.textContent   = 'Enter your password to view your budget';
+    conf.hidden       = true;
+    btn.textContent   = 'Unlock';
+    note.innerHTML    = 'Data encrypted with AES-256-GCM.';
+  } else if (state.type === 'import') {
+    icon.textContent  = '✨';
+    title.textContent = 'Meet Tracker 2';
+    sub.textContent   = 'Enter your existing Tracker password to bring your history over.';
+    conf.hidden       = true;
+    btn.textContent   = 'Import & continue';
+    note.innerHTML    = 'Your original tracker.html data is left untouched.';
+  } else if (state.type === 'legacy') {
+    icon.textContent  = '🛡️';
+    title.textContent = 'Secure your data';
+    sub.textContent   = 'Existing records found — create a password to encrypt them.';
+    conf.hidden       = false;
+    btn.textContent   = 'Encrypt & continue';
+    note.innerHTML    = 'Your records will be encrypted. <strong>Keep your password safe — it cannot be recovered.</strong>';
+  } else {
+    icon.textContent  = '✨';
+    title.textContent = 'Welcome';
+    sub.textContent   = 'Create a password to protect your financial data.';
+    conf.hidden       = false;
+    btn.textContent   = 'Get started';
+    note.innerHTML    = 'AES-256-GCM encryption. <strong>Keep your password safe — it cannot be recovered.</strong>';
+  }
+}
+
+function showLockErr(msg) {
+  const el = document.getElementById('lock-err');
+  el.textContent = msg;
+  el.hidden = false;
+}
+
+async function handleUnlock() {
+  const pwdEl  = document.getElementById('lock-pwd');
+  const confEl = document.getElementById('lock-conf');
+  const btn    = document.getElementById('lock-btn');
+  const state  = detectStorageState();
+  const pwd    = pwdEl.value;
+  const label  = btn.textContent;
+
+  document.getElementById('lock-err').hidden = true;
+  if (!pwd) { showLockErr('Please enter a password.'); pwdEl.focus(); return; }
+
+  if (state.type === 'empty' || state.type === 'legacy') {
+    if (pwd.length < 4)       { showLockErr('Password must be at least 4 characters.'); return; }
+    if (pwd !== confEl.value) { showLockErr('Passwords do not match.'); confEl.focus(); return; }
+  }
+
+  btn.disabled    = true;
+  btn.textContent = '⏳ Please wait…';
+
+  try {
+    if (state.type === 'encrypted') {
+      await unlockExisting(pwd, state.data);
+    } else if (state.type === 'import') {
+      const key  = await deriveKey(pwd, b64Dec(state.data.salt));
+      const hist = await decryptJSON(state.data, key);
+      await setupNew(pwd, { months: convertLegacyHistory(hist), settings: defaultSettings() });
+    } else if (state.type === 'legacy') {
+      await setupNew(pwd, { months: convertLegacyHistory(state.data), settings: defaultSettings() });
+    } else {
+      await setupNew(pwd, { months: {}, settings: defaultSettings() });
+    }
+    pwdEl.value  = '';
+    confEl.value = '';
+    document.getElementById('screen-lock').style.display = 'none';
+    document.getElementById('app').style.display          = '';
+
+    refreshRules();
+    showMain();
+    if (Object.keys(store.months).length > 0) collapseUpload();
+
+  } catch (e) {
+    const isWrongPwd = e.name === 'OperationError' || (e.message && e.message.includes('decrypt'));
+    showLockErr(isWrongPwd ? 'Incorrect password. Try again.' : 'Something went wrong: ' + e.message);
+    activeKey = null; currentSalt = null;
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = label;
+  }
+}
+
+function lock() {
+  activeKey   = null;
+  currentSalt = null;
+  store       = { months: {}, settings: defaultSettings() };
+  monthCache  = {};
+  closeRuleModal();
+  document.getElementById('screen-lock').style.display = '';
+  document.getElementById('app').style.display          = 'none';
+  renderLockScreen();
+  document.getElementById('lock-pwd').focus();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Change password
+// ═══════════════════════════════════════════════════════════════
+
+function showChangePassword() {
+  showScreen('chpwd');
+  document.getElementById('chpwd-new').value  = '';
+  document.getElementById('chpwd-conf').value = '';
+  document.getElementById('chpwd-err').hidden = true;
+  document.getElementById('chpwd-new').focus();
+}
+
+async function handleChangePassword() {
+  const newPwd  = document.getElementById('chpwd-new').value;
+  const confPwd = document.getElementById('chpwd-conf').value;
+  const errEl   = document.getElementById('chpwd-err');
+  const btn     = document.getElementById('chpwd-btn');
+
+  errEl.hidden = true;
+  if (newPwd.length < 4)  { errEl.textContent = 'Password must be at least 4 characters.'; errEl.hidden = false; return; }
+  if (newPwd !== confPwd) { errEl.textContent = 'Passwords do not match.'; errEl.hidden = false; return; }
+
+  btn.disabled    = true;
+  btn.textContent = '⏳ Re-encrypting…';
+  try {
+    const salt  = crypto.getRandomValues(new Uint8Array(16));
+    currentSalt = b64Enc(salt);
+    activeKey   = await deriveKey(newPwd, salt);
+    await persist();
+    showMain();
+    showAlert('Password changed successfully.', 'success');
+  } catch (e) {
+    errEl.textContent = 'Error: ' + e.message;
+    errEl.hidden = false;
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = 'Save new password';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Screen switching
+// ═══════════════════════════════════════════════════════════════
+
+function showScreen(name) {
+  for (const s of ['main', 'detail', 'budget', 'chpwd'])
+    document.getElementById('screen-' + s).hidden = s !== name;
+  hideTip();
+  window.scrollTo({ top: 0 });
+}
+
+function showMain() {
+  currentMonth = null;
+  showScreen('main');
+  renderMain();
+}
+
+function showBudget() {
+  budgetReturnTo = currentMonth ? 'detail' : 'main';
+  showScreen('budget');
+  renderBudgetScreen();
+}
+
+function backFromBudget() {
+  if (budgetReturnTo === 'detail' && currentMonth) openMonth(currentMonth);
+  else showMain();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Main screen
+// ═══════════════════════════════════════════════════════════════
+
+function renderMain(highlightMonths = []) {
+  const keys = Object.keys(store.months).sort().reverse();
+  renderSetupNudge(keys);
+  renderLatest(keys);
+  renderTrend();
+  renderAllTimeSummary(keys);
+  renderHistory(keys, highlightMonths);
+}
+
+function renderSetupNudge(keys) {
+  const el = document.getElementById('setup-nudge');
+  if (totalBudget() || !keys.length) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = `
+    <div class="callout" onclick="showBudget()">
+      <span style="font-size:1.6rem">🎯</span>
+      <span><b>Set up your budget</b><br>Add a monthly spending goal, category budgets and a savings goal to see how each month stacks up.</span>
+      <span class="history-arrow">›</span>
+    </div>`;
+}
+
+function heroHTML(mo, s, opts = {}) {
+  const budget = totalBudget();
+  const st = monthStatus(s.expense, budget, mo);
+  const cur = isCurrentMonth(mo);
+  const dim = daysInMonth(mo), el = elapsedDays(mo);
+  let msg;
+  if (!budget) {
+    msg = `You spent <strong>${fmt(s.expense)}</strong> this month. <a href="#" onclick="event.stopPropagation();showBudget();return false" class="c-pink">Set a budget →</a>`;
+  } else if (s.expense > budget) {
+    msg = `You've exceeded your budget by <strong>${fmt(s.expense - budget)}</strong> (${pct(s.expense, budget)}% used).`;
+  } else if (cur) {
+    const left = budget - s.expense, daysLeft = dim - el + 1;
+    msg = `<strong>${fmt(left)}</strong> left for ${daysLeft} day${daysLeft !== 1 ? 's' : ''} — about <strong>${fmt(left / daysLeft)}/day</strong>. ` +
+          (st.proj > budget * 1.02 ? `At this pace you'll land around <strong>${fmt0(st.proj)}</strong>.` : `On pace for about ${fmt0(st.proj)}.`);
+  } else if (st.label === 'Budget met') {
+    msg = `You met your budget with <strong>${fmt(budget - s.expense)}</strong> to spare.`;
+  } else {
+    msg = `You underused your budget by <strong>${fmt(budget - s.expense)}</strong> — ${100 - pct(s.expense, budget)}% left over. 🎉`;
+  }
+
+  // Quick insights
+  const ins = [];
+  const spentCats = expenseCats().map(c => ({ c, b: catBudget(c), sp: s.cats[c.id]?.spent || 0 })).filter(x => x.sp > 0);
+  const topCat = [...spentCats].sort((a, b) => b.sp - a.sp)[0];
+  if (topCat) ins.push(`${topCat.c.icon} Top: <b>${esc(topCat.c.name)}</b> ${pct(topCat.sp, s.expense)}%`);
+  const overs = spentCats.filter(x => x.b && x.sp > x.b).sort((a, b) => (b.sp - b.b) - (a.sp - a.b));
+  if (overs.length) ins.push(`▲ <b>${overs.length}</b> categor${overs.length === 1 ? 'y' : 'ies'} over · worst ${esc(overs[0].c.name)} +${fmt0(overs[0].sp - overs[0].b)}`);
+  if (store.settings.savingsGoal) {
+    const ss = savingsStatus(s.savings, store.settings.savingsGoal, mo);
+    ins.push(`🐷 Saved <b>${fmt0(s.savings)}</b> of ${fmt0(store.settings.savingsGoal)} · ${esc(ss.label)}`);
+  }
+
+  return `
+    <div class="hero st-${st.key}${opts.clickable ? ' clickable' : ''}" ${opts.clickable ? `onclick="openMonth('${mo}')"` : ''}>
+      <div class="hero-top">
+        <span class="hero-kicker">${opts.kicker ? esc(opts.kicker) : 'Spending budget'}${cur ? ' · in progress' : ''}</span>
+        ${chip(st, true)}
+      </div>
+      <div class="hero-amt">${fmt(s.expense)} ${budget ? `<span class="hero-of">of ${fmt0(budget)}</span>` : ''}</div>
+      ${budget ? meterHTML(s.expense, budget, s.expense > budget ? STATUS.critical : LINE_COLOR, { size: 'lg', tick: cur ? el / dim : null }) : ''}
+      <div class="hero-msg">${msg}</div>
+      ${ins.length ? `<div class="hero-insights">${ins.map(i => `<span class="insight">${i}</span>`).join('')}</div>` : ''}
+    </div>`;
+}
+
+function renderLatest(keys) {
+  const el = document.getElementById('latest-section');
+  const budget = totalBudget();
+  // Without a budget the line would just repeat the first history row
+  if (!keys.length || !budget) { el.hidden = true; return; }
+  el.hidden = false;
+  const mo = keys[0], s = computeMonth(mo);
+  const st = monthStatus(s.expense, budget, mo);
+  el.innerHTML = `
+    <div class="slim" onclick="openMonth('${mo}')">
+      <span class="slim-title">${monthShort(mo)}${isCurrentMonth(mo) ? ' so far' : ''} ${chip(st)}</span>
+      <span class="slim-amt"><b>${fmt0(s.expense)}</b> of ${fmt0(budget)}</span>
+      <span class="history-arrow">›</span>
+      ${meterHTML(s.expense, budget, s.expense > budget ? STATUS.critical : LINE_COLOR, { size: 'sm', tick: isCurrentMonth(mo) ? elapsedDays(mo) / daysInMonth(mo) : null })}
+    </div>`;
+}
+
+function toggleTrends() {
+  const ui = store.settings.ui ||= {};
+  ui.trendsOpen = !ui.trendsOpen;
+  scheduleSave();
+  renderTrend();
+}
+
+function renderAllTimeSummary(keys) {
+  const section = document.getElementById('alltime-section');
+  if (!keys.length) { section.hidden = true; return; }
+  let inc = 0, exp = 0, sav = 0;
+  for (const mo of keys) { const s = computeMonth(mo); inc += s.income; exp += s.expense; sav += s.savings; }
+  const bal = inc - exp - sav;
+  document.getElementById('alltime-grid').innerHTML = `
+    <div class="stat-card income">
+      <div class="stat-label">All-time income</div>
+      <div class="stat-value sm c-green">${fmt(inc)}</div>
+    </div>
+    <div class="stat-card expense">
+      <div class="stat-label">All-time expense</div>
+      <div class="stat-value sm c-orange">${fmt(exp)}</div>
+    </div>
+    <div class="stat-card savings">
+      <div class="stat-label">All-time savings</div>
+      <div class="stat-value sm c-violet">${fmt(sav)}</div>
+    </div>
+    <div class="stat-card ${bal >= 0 ? 'balance-pos' : 'balance-neg'}">
+      <div class="stat-label">All-time balance</div>
+      <div class="stat-value sm ${bal >= 0 ? 'c-green' : 'c-red'}">${fmt(bal)}</div>
+    </div>`;
+  section.hidden = false;
+}
+
+function renderHistory(keys, highlightMonths = []) {
+  const el  = document.getElementById('history-content');
+  const btn = document.getElementById('clear-history-btn');
+  if (!keys.length) {
+    btn.hidden = true;
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">No history yet — process some CSV files above</div></div>`;
+    return;
+  }
+  btn.hidden = false;
+  const budget = totalBudget();
+  el.innerHTML = keys.map(mo => {
+    const d = computeMonth(mo);
+    const st = monthStatus(d.expense, budget, mo);
+    const isNew = highlightMonths.includes(mo);
+    return `
+      <div class="history-row" onclick="openMonth('${mo}')">
+        <span class="history-month">
+          ${monthLabel(mo)}
+          ${isNew ? '<span class="badge badge-new">updated</span>' : ''}
+          ${budget ? chip(st) : ''}
+        </span>
+        <span class="history-nums">
+          <span class="c-green"  title="Income">${fmtShort(d.income)}</span>
+          <span class="c-orange" title="Expense">${fmtShort(d.expense)}</span>
+          <span class="${d.balance >= 0 ? 'c-green' : 'c-red'}" title="Balance">${fmtShort(d.balance)}</span>
+        </span>
+        <span class="history-arrow">›</span>
+        ${budget ? meterHTML(d.expense, budget, d.expense > budget ? STATUS.critical : '#ec4899', { size: 'sm' }) : ''}
+      </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Month detail
+// ═══════════════════════════════════════════════════════════════
+
+function openMonth(mo) {
+  if (!store.months[mo]) return;
+  if (currentMonth !== mo) expandedCats = new Set();
+  currentMonth = mo;
+  showScreen('detail');
+  renderDetail();
+}
+
+function renderDetail() {
+  const mo = currentMonth;
+  const s  = computeMonth(mo);
+  const budget = totalBudget();
+
+  document.getElementById('detail-title').textContent = monthLabel(mo);
+  document.getElementById('detail-hero').innerHTML = heroHTML(mo, s);
+
+  const bal = s.balance;
+  document.getElementById('detail-stats').innerHTML = `
+    <div class="stat-card income">
+      <div class="stat-label">Income</div>
+      <div class="stat-value c-green">${fmt(s.income)}</div>
+    </div>
+    <div class="stat-card expense">
+      <div class="stat-label">Expense</div>
+      <div class="stat-value c-orange">${fmt(s.expense)}</div>
+    </div>
+    <div class="stat-card savings">
+      <div class="stat-label">Savings</div>
+      <div class="stat-value c-violet">${fmt(s.savings)}</div>
+    </div>
+    <div class="stat-card ${bal >= 0 ? 'balance-pos' : 'balance-neg'}">
+      <div class="stat-label">Balance</div>
+      <div class="stat-value ${bal >= 0 ? 'c-green' : 'c-red'}">${fmt(bal)}</div>
+    </div>`;
+
+  // Uncategorized nudge
+  const misc = s.cats.misc;
+  document.getElementById('detail-uncat').innerHTML = misc && misc.spent > 0 ? `
+    <div class="callout" onclick="jumpToCat('misc')">
+      <span style="font-size:1.4rem">📦</span>
+      <span><b>${fmt(misc.spent)}</b> across ${misc.n} transaction${misc.n !== 1 ? 's' : ''} didn't match a category. Tap to review and teach the tracker.</span>
+      <span class="history-arrow">›</span>
+    </div>` : '';
+
+  renderSavingsCard(mo, s);
+  renderDonut(document.getElementById('detail-donut'), s);
+  renderCategoryBreakdown(mo, s);
+  renderPace(document.getElementById('detail-pace'), document.getElementById('pace-legend'), mo, s, budget);
+
+  document.getElementById('dl-month-label').textContent = mo;
+  document.getElementById('dl-month-btn').onclick = () => downloadBlob(`${mo}.csv`, buildMonthDetailCSV(mo));
+}
+
+function renderSavingsCard(mo, s) {
+  const goal = store.settings.savingsGoal;
+  const st = savingsStatus(s.savings, goal, mo);
+  // Savings can also land in custom savings-type categories
+  const savingCats = store.settings.categories.filter(c => c.kind === 'savings');
+  const parts = [];
+  for (const c of savingCats) {
+    const bc = s.cats[c.id];
+    if (!bc) continue;
+    for (const sub of c.subs) if (bc.subs[sub.id]) parts.push([sub.name, bc.subs[sub.id]]);
+    if (bc.subs._none) parts.push([savingCats.length > 1 ? c.name : 'Other', bc.subs._none]);
+  }
+  let msg;
+  if (!goal)                 msg = `<a href="#" onclick="showBudget();return false" class="c-pink">Set a monthly savings goal →</a>`;
+  else if (s.savings >= goal) msg = s.savings > goal ? `You saved <strong>${fmt(s.savings - goal)}</strong> more than planned. 💜` : `Right on your goal. 💜`;
+  else                        msg = `<strong>${fmt(goal - s.savings)}</strong> to go to reach your ${fmt0(goal)} goal.`;
+  document.getElementById('detail-savings').innerHTML = `
+    <div class="card" style="background:linear-gradient(135deg,#fff 0%,#f5f3ff 100%);border-color:#ddd6fe">
+      <div class="card-label"><span>Savings &amp; investing goal</span>${chip(st)}</div>
+      <div class="hero-amt" style="font-size:1.6rem;color:var(--violet)">${fmt(s.savings)} ${goal ? `<span class="hero-of">of ${fmt0(goal)}</span>` : ''}</div>
+      <div style="margin:.65rem 0 .5rem">${goal ? savingsMeterHTML(s.savings, goal) : ''}</div>
+      <div class="hero-msg">${msg}</div>
+      ${parts.length ? `<div class="hero-insights">${parts.map(([n, a]) => `<span class="insight">${esc(n)} <b>${fmt0(a)}</b></span>`).join('')}</div>` : ''}
+    </div>`;
+}
+
+// Saving more than planned is good news — the extra shows as a lighter violet extension, not a warning
+function savingsMeterHTML(saved, goal) {
+  if (saved <= goal) return meterHTML(saved, goal, SAVINGS_COLOR, { size: 'lg' });
+  const within = goal / saved * 100;
+  return `<div class="meter lg"><div class="meter-fill" style="width:calc(${within}% - 2px);background:${SAVINGS_COLOR};border-radius:999px 0 0 999px"></div><div class="meter-fill" style="flex:1;background:#c4b5fd;border-radius:0 999px 999px 0"></div></div>`;
+}
+
+function renderCategoryBreakdown(mo, s) {
+  merchReg = [];
+  const rows = expenseCats()
+    .map(c => ({ c, b: s.cats[c.id], budget: catBudget(c), spent: s.cats[c.id]?.spent || 0 }))
+    .filter(x => x.spent > 0 || x.budget > 0)
+    .sort((a, b) => (b.spent - a.spent) || (b.budget - a.budget));
+  const maxSpent = Math.max(1, ...rows.map(r => r.spent));
+  const el = document.getElementById('detail-cats');
+
+  if (!rows.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🌱</div><div class="empty-text">Nothing spent yet</div></div>`;
+    return;
+  }
+
+  const excluded = s.excluded > 0
+    ? `<div class="small muted" style="margin-top:.6rem">🚫 ${fmt(s.excluded)} marked as not spending (excluded from totals).</div>` : '';
+
+  el.innerHTML = rows.map(({ c, b, budget, spent }) => {
+    const color = catColor(c);
+    const st = catStatus(spent, budget);
+    const open = expandedCats.has(c.id);
+    return `
+      <div class="cat-row${open ? ' open' : ''}" id="cat-${esc(c.id)}">
+        <button class="cat-head" onclick="toggleCat('${esc(c.id)}')" aria-expanded="${open}">
+          <span class="cat-ico" style="background:${color}22">${esc(c.icon)}</span>
+          <span class="cat-main">
+            <span class="cat-name">${esc(c.name)}</span>
+            <span class="cat-sub"><b>${fmt(spent)}</b>${budget ? ` of ${fmt0(budget)}` : ''} · ${b?.n || 0} txn${(b?.n || 0) !== 1 ? 's' : ''}${budget && spent < budget ? ` · ${fmt0(budget - spent)} left` : ''}</span>
+          </span>
+          ${chip(st)}
+          <span class="chev">▾</span>
+        </button>
+        ${meterHTML(spent, budget, color, { rel: spent / maxSpent })}
+        ${open ? catBodyHTML(c, b, color) : ''}
+      </div>`;
+  }).join('') + excluded;
+}
+
+function catBodyHTML(c, b, color) {
+  if (!b) return `<div class="cat-body"><div class="small muted">No spending in this category this month.</div></div>`;
+  let html = '<div class="cat-body">';
+  if (c.id === 'misc')
+    html += `<div class="hint">These didn't match any rule. Tap <b>🏷️</b> next to a merchant to choose a category — it'll apply to every month, now and in future uploads.</div>`;
+
+  // Subcategories
+  const subs = [...c.subs.map(sb => ({ id: sb.id, name: sb.name, budget: +sb.budget || 0, amt: b.subs[sb.id] || 0 }))];
+  if (b.subs._none && c.id !== 'misc') subs.push({ id: '_none', name: 'Other', budget: 0, amt: b.subs._none });
+  const shownSubs = subs.filter(x => x.amt > 0 || x.budget > 0).sort((x, y) => y.amt - x.amt);
+  if (shownSubs.length) {
+    html += `<div class="sec-label">Subcategories</div>`;
+    html += shownSubs.map(x => {
+      const st = x.budget ? catStatus(x.amt, x.budget) : null;
+      return `
+        <div class="sub-row">
+          <div class="sub-line">
+            <span class="nm">${esc(x.name)}</span>
+            <span class="am">${fmt(x.amt)}${x.budget ? ` / ${fmt0(x.budget)}` : ` · ${pct(x.amt, b.spent)}%`} ${st ? chip(st) : ''}</span>
+          </div>
+          ${meterHTML(x.amt, x.budget, color, { size: 'sm', rel: x.amt / b.spent })}
+        </div>`;
+    }).join('');
+  }
+
+  // Top merchants
+  const merchants = Object.values(b.merchants).sort((x, y) => y.amt - x.amt);
+  const top = merchants.slice(0, 8);
+  html += `<div class="sec-label" style="margin-top:.6rem">Where it went</div>`;
+  html += top.map(m => {
+    const i = merchReg.push(m) - 1;
+    return `
+      <div class="merch-row">
+        <span class="merch-name" title="${esc(m.raw)}">${esc(m.label)}</span>
+        <span class="merch-n">×${m.n}</span>
+        <span class="merch-amt">${fmt(m.amt)}</span>
+        <button class="btn-icon" onclick="categorizeMerchant(${i})" title="Change category">🏷️</button>
+      </div>`;
+  }).join('');
+  if (merchants.length > top.length)
+    html += `<div class="small muted" style="margin-top:.4rem">+${merchants.length - top.length} more — download the CSV below for the full list.</div>`;
+  return html + '</div>';
+}
+
+function toggleCat(id) {
+  expandedCats.has(id) ? expandedCats.delete(id) : expandedCats.add(id);
+  renderCategoryBreakdown(currentMonth, computeMonth(currentMonth));
+}
+
+function jumpToCat(id) {
+  expandedCats.add(id);
+  renderCategoryBreakdown(currentMonth, computeMonth(currentMonth));
+  document.getElementById('cat-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function categorizeMerchant(i) {
+  const m = merchReg[i];
+  if (!m) return;
+  openRuleModal({ pattern: m.pattern, cat: m.cat === 'misc' ? '' : m.cat, sub: m.sub, example: m.raw });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Categorize modal
+// ═══════════════════════════════════════════════════════════════
+
+function openRuleModal({ pattern = '', cat = '', sub = '', example = '' } = {}) {
+  document.getElementById('m-pattern').value = pattern;
+  const ex = document.getElementById('m-example');
+  ex.hidden = !example;
+  ex.textContent = example ? 'Example: ' + example : '';
+  const sel = document.getElementById('m-cat');
+  sel.innerHTML = store.settings.categories.map(c =>
+    `<option value="${esc(c.id)}">${esc(c.icon)} ${esc(c.name)}</option>`).join('');
+  sel.value = cat && catById(cat) ? cat : (store.settings.categories.find(c => c.id !== 'misc')?.id || 'misc');
+  fillSubSelect(sub);
+  document.getElementById('m-err').hidden = true;
+  document.getElementById('rule-modal').hidden = false;
+  updateRulePreview();
+  setTimeout(() => document.getElementById('m-pattern').focus(), 50);
+}
+
+function closeRuleModal() { document.getElementById('rule-modal').hidden = true; }
+
+function fillSubSelect(selected = '') {
+  const cat = catById(document.getElementById('m-cat').value);
+  const sel = document.getElementById('m-sub');
+  sel.innerHTML = `<option value="">— none —</option>` +
+    (cat?.subs || []).map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('') +
+    `<option value="__new">＋ New subcategory…</option>`;
+  sel.value = selected && cat?.subs.some(s => s.id === selected) ? selected : (cat?.subs[0]?.id || '');
+  toggleNewSub();
+}
+
+function toggleNewSub() {
+  const isNew = document.getElementById('m-sub').value === '__new';
+  const inp = document.getElementById('m-newsub');
+  inp.hidden = !isNew;
+  if (isNew) inp.focus();
+}
+
+function updateRulePreview() {
+  const P = document.getElementById('m-pattern').value.trim().toUpperCase();
+  const el = document.getElementById('m-preview');
+  if (P.length < 2) { el.innerHTML = 'Type at least 2 characters of the description, exactly as it appears in your bank export.'; return; }
+  let n = 0, total = 0;
+  const examples = new Set();
+  for (const mo of Object.keys(store.months)) {
+    for (const t of store.months[mo].transactions) {
+      if (!(t.expense > 0 || t.savings > 0)) continue;
+      if (String(t.raw || t.name).toUpperCase().includes(P)) {
+        n++; total += t.expense || t.savings;
+        if (examples.size < 3) examples.add(cleanDesc(t.raw || t.name).label);
+      }
+    }
+  }
+  el.innerHTML = n
+    ? `Matches <b>${n}</b> transaction${n !== 1 ? 's' : ''} in your history (${fmt(total)}).<ul>${[...examples].map(e => `<li>${esc(e)}</li>`).join('')}</ul>`
+    : `No matches in your history yet — it'll apply to future uploads.`;
+}
+
+function saveRuleFromModal() {
+  const pattern = document.getElementById('m-pattern').value.trim();
+  const catId   = document.getElementById('m-cat').value;
+  let subId     = document.getElementById('m-sub').value;
+  const errEl   = document.getElementById('m-err');
+  errEl.hidden = true;
+  if (pattern.length < 2) { errEl.textContent = 'Enter at least 2 characters.'; errEl.hidden = false; return; }
+  const cat = catById(catId);
+  if (subId === '__new') {
+    const name = document.getElementById('m-newsub').value.trim();
+    if (!name) { errEl.textContent = 'Name the new subcategory.'; errEl.hidden = false; return; }
+    subId = 's_' + uid();
+    cat.subs.push({ id: subId, name, budget: 0 });
+  }
+  const P = pattern.toUpperCase();
+  const existing = store.settings.rules.find(r => !r.builtin && r.pattern.toUpperCase() === P);
+  if (existing) Object.assign(existing, { pattern, cat: catId, sub: subId || null });
+  else store.settings.rules.push({ id: 'u_' + uid(), pattern, cat: catId, sub: subId || null, builtin: false });
+
+  refreshRules();
+  scheduleSave();
+  closeRuleModal();
+  if (!document.getElementById('screen-detail').hidden) renderDetail();
+  else if (!document.getElementById('screen-budget').hidden) renderBudgetScreen();
+  else renderMain();
+  showToastAlert(`Saved — anything containing “${pattern}” now goes to ${cat.name}.`);
+}
+
+function showToastAlert(msg) {
+  // Reuse the main alert box when visible, otherwise a brief tooltip-style toast
+  const el = tt();
+  el.innerHTML = `<div class="tt-row"><b>✓</b><span style="color:#fff">${esc(msg)}</span></div>`;
+  el.hidden = false;
+  el.style.left = Math.max(8, (window.innerWidth - el.offsetWidth) / 2) + 'px';
+  el.style.top  = (window.innerHeight - el.offsetHeight - 24) + 'px';
+  setTimeout(hideTip, 2600);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Budget & categories screen
+// ═══════════════════════════════════════════════════════════════
+
+function renderBudgetScreen() {
+  const st = store.settings;
+  const el = document.getElementById('budget-content');
+  const kindTag = c => c.kind === 'savings' ? '<span class="kind-tag">savings</span>'
+                     : c.kind === 'exclude' ? '<span class="kind-tag ex">excluded</span>' : '';
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-label"><span>Monthly goals</span></div>
+      <div class="fld-row">
+        <label class="fld">Spending budget
+          <span class="money"><input class="inp" type="number" min="0" step="10" inputmode="decimal" value="${st.total || ''}" placeholder="${expenseCats().reduce((a, c) => a + catBudget(c), 0) || '0'}" onchange="setGoal('total', this.value)"></span>
+        </label>
+        <label class="fld">Savings &amp; investing goal
+          <span class="money"><input class="inp" type="number" min="0" step="10" inputmode="decimal" value="${st.savingsGoal || ''}" placeholder="0" onchange="setGoal('savingsGoal', this.value)"></span>
+        </label>
+      </div>
+      <div id="alloc" class="mt-1"></div>
+      <button class="btn btn-outline btn-sm mt-1" onclick="suggestBudgets()">✨ Suggest from my history</button>
+    </div>
+
+    <div class="card">
+      <div class="card-label"><span>Categories &amp; subcategories</span></div>
+      <p class="small muted" style="margin-bottom:.75rem">Give a category its own budget, or budget its subcategories and the category uses their total.</p>
+      ${st.categories.map(c => {
+        const color = catColor(c), cb = catBudget(c);
+        return `
+        <details class="cat-edit" ${openCatEdits.has(c.id) ? 'open' : ''} ontoggle="trackOpen('${esc(c.id)}', this.open)">
+          <summary>
+            <span class="swatch" style="background:${color}"></span>
+            <span>${esc(c.icon)} ${esc(c.name)}</span> ${kindTag(c)}
+            <span class="amt">${c.kind === 'exclude' ? '' : cb ? fmt0(cb) : '<span class="muted">no budget</span>'}</span>
+          </summary>
+          <div class="cat-edit-body">
+            <div class="sub-edit" style="grid-template-columns:3.2rem 1fr 110px">
+              <input class="inp sm" value="${esc(c.icon)}" maxlength="4" aria-label="Icon" onchange="setCatField('${esc(c.id)}','icon',this.value)">
+              <input class="inp sm" value="${esc(c.name)}" aria-label="Category name" onchange="setCatField('${esc(c.id)}','name',this.value)">
+              ${c.kind === 'exclude' ? '<span></span>' : `<span class="money"><input class="inp sm" type="number" min="0" step="5" inputmode="decimal" value="${c.budget || ''}" placeholder="${c.subs.reduce((a, s) => a + (+s.budget || 0), 0) || 'Budget'}" aria-label="Category budget" onchange="setCatField('${esc(c.id)}','budget',this.value)"></span>`}
+            </div>
+            ${c.subs.length ? `<div class="sec-label" style="margin-top:.2rem">Subcategories</div>` : ''}
+            ${c.subs.map(sb => `
+              <div class="sub-edit">
+                <input class="inp sm" value="${esc(sb.name)}" aria-label="Subcategory name" onchange="setSubField('${esc(c.id)}','${esc(sb.id)}','name',this.value)">
+                ${c.kind === 'exclude' ? '<span></span>' : `<span class="money"><input class="inp sm" type="number" min="0" step="5" inputmode="decimal" value="${sb.budget || ''}" placeholder="Budget" aria-label="Subcategory budget" onchange="setSubField('${esc(c.id)}','${esc(sb.id)}','budget',this.value)"></span>`}
+                <button class="btn-x" title="Delete subcategory" onclick="delSub('${esc(c.id)}','${esc(sb.id)}')">×</button>
+              </div>`).join('')}
+            <div class="sub-edit" style="grid-template-columns:1fr auto">
+              <input class="inp sm" id="newsub-${esc(c.id)}" placeholder="New subcategory" onkeydown="if(event.key==='Enter')addSub('${esc(c.id)}')">
+              <button class="btn-icon" onclick="addSub('${esc(c.id)}')">＋ Add</button>
+            </div>
+            <div class="row-between">
+              <button class="btn-icon" onclick="openRuleModal({cat:'${esc(c.id)}'})">🏷️ Add a rule for this category</button>
+              ${c.locked ? '' : `<button class="btn-subtle" style="color:#e11d48" onclick="delCategory('${esc(c.id)}')">Delete category</button>`}
+            </div>
+          </div>
+        </details>`;
+      }).join('')}
+      <div class="divider" style="height:1px;background:var(--border);margin:.9rem 0"></div>
+      <div class="sec-label">New category</div>
+      <div class="sub-edit" style="grid-template-columns:3.2rem 1fr 120px auto">
+        <input class="inp sm" id="nc-icon" placeholder="🏷" maxlength="4" aria-label="Icon">
+        <input class="inp sm" id="nc-name" placeholder="e.g. Education" aria-label="Name" onkeydown="if(event.key==='Enter')addCategory()">
+        <select class="sel inp sm" id="nc-kind" aria-label="Type">
+          <option value="expense">Spending</option>
+          <option value="savings">Savings</option>
+          <option value="exclude">Not spending</option>
+        </select>
+        <button class="btn-icon" onclick="addCategory()">＋ Add</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">
+        <span>Auto-categorize rules</span>
+        <button class="btn-icon" onclick="openRuleModal()">＋ New rule</button>
+      </div>
+      <p class="small muted" style="margin-bottom:.7rem">
+        If a transaction's description contains the text, it goes to that category — on every account and every upload.
+        <b style="color:var(--prim2)">Your rules</b> win over built-in ones; otherwise the most specific match wins.
+      </p>
+      <input class="inp sm" placeholder="🔍 Filter rules…" oninput="filterRules(this.value)" style="margin-bottom:.8rem">
+      <div id="rules-list"></div>
+      <div class="row-between mt-1">
+        <span class="small muted">${st.rules.length} rules</span>
+        <button class="btn-subtle" onclick="resetRules()">↺ Restore built-in rules</button>
+      </div>
+    </div>`;
+  updateAllocation();
+  filterRules('');
+}
+
+function filterRules(q) {
+  const Q = q.trim().toUpperCase();
+  const groups = store.settings.categories.map(c => {
+    const rs = store.settings.rules
+      .filter(r => r.cat === c.id && (!Q || r.pattern.toUpperCase().includes(Q) || subName(c, r.sub).toUpperCase().includes(Q)))
+      .sort((a, b) => (a.builtin - b.builtin) || a.pattern.localeCompare(b.pattern));
+    return { c, rs };
+  }).filter(g => g.rs.length);
+  document.getElementById('rules-list').innerHTML = groups.length ? groups.map(({ c, rs }) => `
+    <div class="rule-grp">
+      <div class="rule-grp-h"><span class="swatch" style="background:${catColor(c)}"></span>${esc(c.icon)} ${esc(c.name)}</div>
+      <div class="rule-chips">
+        ${rs.map(r => `<span class="rchip${r.builtin ? '' : ' user'}" title="${r.fallback ? 'Fallback — used only if nothing more specific matches' : ''}">${esc(r.pattern)}<span class="to">→ ${esc(subName(c, validSub(c, r.sub)))}</span><button onclick="delRule('${esc(r.id)}')" aria-label="Delete rule">×</button></span>`).join('')}
+      </div>
+    </div>`).join('') : `<div class="small muted">No rules match.</div>`;
+}
+
+function trackOpen(id, open) { open ? openCatEdits.add(id) : openCatEdits.delete(id); }
+
+function updateAllocation() {
+  const el = document.getElementById('alloc');
+  if (!el) return;
+  const st = store.settings;
+  const allocated = expenseCats().reduce((a, c) => a + catBudget(c), 0);
+  if (!st.total && !allocated) { el.innerHTML = `<div class="small muted">Tip: tap ✨ to start from what you usually spend.</div>`; return; }
+  const total = st.total || allocated;
+  const diff = total - allocated;
+  const s = diff < 0 ? { key: 'critical', icon: '▲', label: `Over-allocated by ${fmt0(-diff)}` }
+          : diff > 0 ? { key: 'warning', icon: '●', label: `${fmt0(diff)} unallocated` }
+          : { key: 'good', icon: '✓', label: 'Fully allocated' };
+  el.innerHTML = `
+    <div class="row-between small" style="margin-bottom:.35rem">
+      <span>Categories add up to <b>${fmt0(allocated)}</b> of ${fmt0(total)}</span>${chip(s)}
+    </div>
+    ${meterHTML(allocated, total, LINE_COLOR)}`;
+}
+
+function afterSettingsChange(rerender = false) {
+  refreshRules();
+  scheduleSave();
+  if (rerender) renderBudgetScreen();
+  else updateAllocation();
+}
+
+function setGoal(field, v) {
+  store.settings[field] = Math.max(0, parseFloat(v) || 0);
+  afterSettingsChange();
+}
+
+function setCatField(id, field, v) {
+  const c = catById(id);
+  if (!c) return;
+  if (field === 'budget') c.budget = Math.max(0, parseFloat(v) || 0);
+  else if (field === 'name') c.name = v.trim() || c.name;
+  else if (field === 'icon') c.icon = v.trim() || '🏷';
+  afterSettingsChange(field !== 'budget');
+}
+
+function setSubField(cid, sid, field, v) {
+  const sub = catById(cid)?.subs.find(s => s.id === sid);
+  if (!sub) return;
+  if (field === 'budget') sub.budget = Math.max(0, parseFloat(v) || 0);
+  else sub.name = v.trim() || sub.name;
+  afterSettingsChange(true);
+}
+
+function addSub(cid) {
+  const inp = document.getElementById('newsub-' + cid);
+  const name = inp?.value.trim();
+  if (!name) return;
+  catById(cid).subs.push({ id: 's_' + uid(), name, budget: 0 });
+  openCatEdits.add(cid);
+  afterSettingsChange(true);
+}
+
+function delSub(cid, sid) {
+  const c = catById(cid);
+  const n = store.settings.rules.filter(r => r.cat === cid && r.sub === sid).length;
+  if (!confirm(`Delete “${c.subs.find(s => s.id === sid)?.name}”?${n ? ` Its ${n} rule(s) will stay in ${c.name} without a subcategory.` : ''}`)) return;
+  c.subs = c.subs.filter(s => s.id !== sid);
+  store.settings.rules.forEach(r => { if (r.cat === cid && r.sub === sid) r.sub = null; });
+  afterSettingsChange(true);
+}
+
+function addCategory() {
+  const name = document.getElementById('nc-name').value.trim();
+  if (!name) { document.getElementById('nc-name').focus(); return; }
+  const kind = document.getElementById('nc-kind').value;
+  const used = new Set(store.settings.categories.map(c => c.slot));
+  let slot = -1;
+  if (kind === 'expense') for (let i = 0; i < SERIES.length; i++) if (!used.has(i)) { slot = i; break; }
+  const id = 'c_' + uid();
+  // Keep the fallback buckets at the end of the list
+  const firstLocked = store.settings.categories.findIndex(c => c.locked);
+  const cat = { id, name, icon: document.getElementById('nc-icon').value.trim() || '🏷', slot, kind, budget: 0, subs: [] };
+  store.settings.categories.splice(firstLocked < 0 ? store.settings.categories.length : firstLocked, 0, cat);
+  openCatEdits.add(id);
+  afterSettingsChange(true);
+}
+
+function delCategory(id) {
+  const c = catById(id);
+  const n = store.settings.rules.filter(r => r.cat === id).length;
+  if (!confirm(`Delete “${c.name}”? ${n ? `Its ${n} rule(s) will be removed and those transactions become Miscellaneous.` : ''}`)) return;
+  store.settings.categories = store.settings.categories.filter(x => x.id !== id);
+  store.settings.rules = store.settings.rules.filter(r => r.cat !== id);
+  afterSettingsChange(true);
+}
+
+function delRule(id) {
+  store.settings.rules = store.settings.rules.filter(r => r.id !== id);
+  afterSettingsChange(true);
+}
+
+function resetRules() {
+  if (!confirm('Restore any deleted built-in rules? Your own rules are kept.')) return;
+  const have = new Set(store.settings.rules.map(r => r.id));
+  for (const r of defaultRules())
+    if (!have.has(r.id) && catById(r.cat)) store.settings.rules.push(r);
+  afterSettingsChange(true);
+}
+
+function suggestBudgets() {
+  const all = Object.keys(store.months);
+  const done = all.filter(mo => !isCurrentMonth(mo));
+  const use = done.length ? done : all;
+  if (!use.length) { alert('Upload some statements first, then I can suggest budgets from your spending.'); return; }
+  if (!confirm(`Fill every budget with your average over ${use.length} month${use.length !== 1 ? 's' : ''}? This replaces the current amounts.`)) return;
+  const up10 = v => v > 0 ? Math.ceil(v / 10) * 10 : 0;
+  const avg = fn => use.reduce((a, mo) => a + fn(computeMonth(mo)), 0) / use.length;
+  for (const c of store.settings.categories) {
+    if (c.kind !== 'expense') continue;
+    c.budget = up10(avg(s => s.cats[c.id]?.spent || 0));
+    for (const sb of c.subs) sb.budget = up10(avg(s => s.cats[c.id]?.subs[sb.id] || 0));
+  }
+  store.settings.total = expenseCats().reduce((a, c) => a + (+c.budget || 0), 0);
+  store.settings.savingsGoal = up10(avg(s => s.savings));
+  afterSettingsChange(true);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Upload collapse
+// ═══════════════════════════════════════════════════════════════
+
+function toggleUpload() {
+  const body = document.getElementById('upload-body');
+  const btn  = document.getElementById('toggle-btn');
+  uploadCollapsed = !uploadCollapsed;
+  if (uploadCollapsed) {
+    body.style.maxHeight = body.scrollHeight + 'px';
+    requestAnimationFrame(() => body.classList.add('collapsed'));
+    btn.textContent = '▼ Expand';
+  } else {
+    body.classList.remove('collapsed');
+    body.style.maxHeight = '';
+    btn.textContent = '▲ Collapse';
+  }
+}
+
+function collapseUpload() {
+  if (uploadCollapsed) return;
+  const body = document.getElementById('upload-body');
+  body.style.maxHeight = body.scrollHeight + 'px';
+  requestAnimationFrame(() => body.classList.add('collapsed'));
+  document.getElementById('toggle-btn').textContent = '▼ Expand';
+  uploadCollapsed = true;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Clear history
+// ═══════════════════════════════════════════════════════════════
+
+async function confirmClearHistory() {
+  if (!confirm('Delete all stored monthly history? Your budget, categories and rules are kept. This cannot be undone.')) return;
+  store.months = {};
+  monthCache = {};
+  await persist();
+  renderMain();
+  showAlert('History cleared.', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Alerts
+// ═══════════════════════════════════════════════════════════════
+
+function showAlert(msg, type) {
+  document.getElementById('alert-box').innerHTML =
+    msg ? `<div class="alert alert-${type}">${msg}</div>` : '';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// File selection UI
+// ═══════════════════════════════════════════════════════════════
+
+let selectedFiles = [];
+
+function updateFileList() {
+  const card  = document.getElementById('file-card');
+  const list  = document.getElementById('file-list');
+  const label = document.getElementById('file-label');
+  const btn   = document.getElementById('btn-process');
+  if (!selectedFiles.length) { card.hidden = true; btn.disabled = true; return; }
+  const n = selectedFiles.length;
+  label.textContent = `${n} file${n !== 1 ? 's' : ''} selected`;
+  list.innerHTML = selectedFiles.map(f =>
+    `<li class="file-item"><span class="file-name">${esc(f.name)}</span><span class="badge">${esc(guessAccount(f.name))}</span></li>`
+  ).join('');
+  card.hidden = false;
+  btn.disabled = false;
+}
+
+function clearFiles() {
+  selectedFiles = [];
+  document.getElementById('csv-input').value = '';
+  updateFileList();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Main process handler
+// ═══════════════════════════════════════════════════════════════
+
+async function handleProcess() {
+  showAlert('', '');
+  if (!selectedFiles.length) return;
+
+  const btn = document.getElementById('btn-process');
+  btn.disabled    = true;
+  btn.textContent = '⏳ Processing…';
+
+  try {
+    let transactions = [];
+    for (const file of selectedFiles) {
+      const text = await readFileText(file);
+      transactions = transactions.concat(readTransactions(text, guessAccount(file.name)));
+    }
+
+    if (!transactions.length) {
+      showAlert('No valid transactions found — are these CIBC CSV exports?', 'warning');
+      return;
+    }
+
+    const byMonth = transactions.reduce((acc, t) => { (acc[t.date.slice(0, 7)] ||= []).push(t); return acc; }, {});
+    let added = 0;
+    for (const [mo, txs] of Object.entries(byMonth)) {
+      const res = mergeTransactions(store.months[mo]?.transactions || [], txs);
+      store.months[mo] = { transactions: res.merged };
+      added += res.added;
+    }
+    monthCache = {};
+    await persist();
+
+    const updatedMonths = Object.keys(byMonth).sort();
+    renderMain(updatedMonths);
+    if (!uploadCollapsed) collapseUpload();
+
+    const skipped = transactions.length - added;
+    const n = updatedMonths.length;
+    showAlert(
+      `Added ${added} transaction${added !== 1 ? 's' : ''} across ${n} month${n !== 1 ? 's' : ''}: ${updatedMonths.map(monthLabel).join(', ')}.` +
+      (skipped > 0 ? ` Skipped ${skipped} already on file.` : ''), 'success');
+    clearFiles();
+
+  } catch (err) {
+    showAlert(`Error: ${esc(err.message)}`, 'danger');
+  } finally {
+    btn.disabled    = !selectedFiles.length;
+    btn.innerHTML   = '⚡&nbsp; Process files';
+  }
+}
+
+function readFileText(file) {
+  if (typeof file.text === 'function') return file.text();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+    reader.readAsText(file, 'utf-8');
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Event listeners
+// ═══════════════════════════════════════════════════════════════
+
+document.getElementById('csv-input').addEventListener('change', e => {
+  selectedFiles = [...e.target.files].filter(f => f.name.toLowerCase().endsWith('.csv'));
+  updateFileList();
+});
+
+const dropZone = document.getElementById('drop-zone');
+['dragenter', 'dragover'].forEach(ev =>
+  dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('dragover'); })
+);
+['dragleave', 'drop'].forEach(ev =>
+  dropZone.addEventListener(ev, () => dropZone.classList.remove('dragover'))
+);
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  selectedFiles = [...e.dataTransfer.files].filter(f => f.name.toLowerCase().endsWith('.csv'));
+  updateFileList();
+});
+
+document.getElementById('lock-pwd').addEventListener('keydown',  e => { if (e.key === 'Enter') handleUnlock(); });
+document.getElementById('lock-conf').addEventListener('keydown', e => { if (e.key === 'Enter') handleUnlock(); });
+document.getElementById('chpwd-conf').addEventListener('keydown', e => { if (e.key === 'Enter') handleChangePassword(); });
+document.getElementById('m-pattern').addEventListener('keydown',  e => { if (e.key === 'Enter') saveRuleFromModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRuleModal(); });
+window.addEventListener('scroll', hideTip, { passive: true });
+
+// ═══════════════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════════════
+
+renderLockScreen();
+document.getElementById('lock-pwd').focus();
+</script>
+
+</body>
+</html>
