@@ -360,6 +360,7 @@
     }
     .inp:focus, .sel:focus { border-color: var(--primary); }
     .inp.sm    { padding: .4rem .55rem; font-size: .82rem; border-radius: 8px; }
+    .inp::placeholder { color: #c4a6b6; }
     .money     { position: relative; }
     .money::before { content: '$'; position: absolute; left: .7rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .85rem; pointer-events: none; }
     .money .inp { padding-left: 1.4rem; }
@@ -1192,12 +1193,32 @@ function addToBucket(s, c, t, amt) {
   mm.amt += amt; mm.n++;
 }
 
-function catBudget(cat) {
-  return (+cat.budget || 0) || cat.subs.reduce((a, s) => a + (+s.budget || 0), 0);
+// Budgets are top-down with suggestions: an amount you type is the target; leave it empty
+// and the sum of the level below is used instead (subcategories → category → monthly totals).
+function subSum(cat)    { return cat.subs.reduce((a, s) => a + (+s.budget || 0), 0); }
+function catBudget(cat) { return (+cat.budget || 0) || subSum(cat); }
+function expenseCats()  { return store.settings.categories.filter(c => c.kind === 'expense'); }
+function savingsCats()  { return store.settings.categories.filter(c => c.kind === 'savings'); }
+function catsSum(cats)  { return cats.reduce((a, c) => a + catBudget(c), 0); }
+function totalBudget()  { return store.settings.total       || catsSum(expenseCats()); }
+function savingsGoal()  { return store.settings.savingsGoal || catsSum(savingsCats()); }
+
+// "Do the parts fit inside the target?" — null when there's nothing to compare
+function allocStatus(parts, target) {
+  if (!target || !parts) return null;
+  const d = target - parts;
+  if (Math.abs(d) < 0.005) return { key: 'good',     icon: '✓', label: 'Fully allocated' };
+  if (d > 0)               return { key: 'warning',  icon: '●', label: `${fmt0(d)} unallocated` };
+  return                          { key: 'critical', icon: '▲', label: `Over by ${fmt0(-d)}` };
 }
-function expenseCats() { return store.settings.categories.filter(c => c.kind === 'expense'); }
-function totalBudget() {
-  return store.settings.total || expenseCats().reduce((a, c) => a + catBudget(c), 0);
+function allocHTML(parts, target, what) {
+  const st = allocStatus(parts, target);
+  if (!st) return '';
+  return `
+    <div class="row-between small" style="margin-bottom:.3rem;gap:.5rem;flex-wrap:wrap">
+      <span>${esc(what)} add up to <b>${fmt0(parts)}</b> of ${fmt0(target)}</span>${chip(st)}
+    </div>
+    ${meterHTML(parts, target, parts > target ? STATUS.critical : LINE_COLOR, { size: 'sm' })}`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1283,7 +1304,7 @@ function buildMonthDetailCSV(mo) {
   lines.push(csvRow(['Savings', r2(s.savings)]));
   lines.push(csvRow(['Balance', r2(s.balance)]));
   if (budget) lines.push(csvRow(['Spending budget', budget, 'Status', monthStatus(s.expense, budget, mo).label]));
-  if (store.settings.savingsGoal) lines.push(csvRow(['Savings goal', store.settings.savingsGoal, 'Status', savingsStatus(s.savings, store.settings.savingsGoal, mo).label]));
+  if (savingsGoal()) lines.push(csvRow(['Savings goal', savingsGoal(), 'Status', savingsStatus(s.savings, savingsGoal(), mo).label]));
   lines.push('', 'category,subcategory,spent,budget,remaining');
   for (const cat of store.settings.categories) {
     const b = s.cats[cat.id];
@@ -1898,9 +1919,9 @@ function heroHTML(mo, s, opts = {}) {
   if (topCat) ins.push(`${topCat.c.icon} Top: <b>${esc(topCat.c.name)}</b> ${pct(topCat.sp, s.expense)}%`);
   const overs = spentCats.filter(x => x.b && x.sp > x.b).sort((a, b) => (b.sp - b.b) - (a.sp - a.b));
   if (overs.length) ins.push(`▲ <b>${overs.length}</b> categor${overs.length === 1 ? 'y' : 'ies'} over · worst ${esc(overs[0].c.name)} +${fmt0(overs[0].sp - overs[0].b)}`);
-  if (store.settings.savingsGoal) {
-    const ss = savingsStatus(s.savings, store.settings.savingsGoal, mo);
-    ins.push(`🐷 Saved <b>${fmt0(s.savings)}</b> of ${fmt0(store.settings.savingsGoal)} · ${esc(ss.label)}`);
+  if (savingsGoal()) {
+    const ss = savingsStatus(s.savings, savingsGoal(), mo);
+    ins.push(`🐷 Saved <b>${fmt0(s.savings)}</b> of ${fmt0(savingsGoal())} · ${esc(ss.label)}`);
   }
 
   return `
@@ -2056,7 +2077,7 @@ function renderDetail() {
 }
 
 function renderSavingsCard(mo, s) {
-  const goal = store.settings.savingsGoal;
+  const goal = savingsGoal();
   const st = savingsStatus(s.savings, goal, mo);
   // Savings can also land in custom savings-type categories
   const savingCats = store.settings.categories.filter(c => c.kind === 'savings');
@@ -2299,39 +2320,44 @@ function renderBudgetScreen() {
       <div class="card-label"><span>Monthly goals</span></div>
       <div class="fld-row">
         <label class="fld">Spending budget
-          <span class="money"><input class="inp" type="number" min="0" step="10" inputmode="decimal" value="${st.total || ''}" placeholder="${expenseCats().reduce((a, c) => a + catBudget(c), 0) || '0'}" onchange="setGoal('total', this.value)"></span>
+          <span class="money"><input class="inp" id="goal-total-in" type="number" min="0" step="10" inputmode="decimal" value="${st.total || ''}" aria-label="Spending budget" oninput="setGoal('total', this.value)"></span>
+          <span class="small muted" id="goal-total-note" style="font-weight:500"></span>
         </label>
         <label class="fld">Savings &amp; investing goal
-          <span class="money"><input class="inp" type="number" min="0" step="10" inputmode="decimal" value="${st.savingsGoal || ''}" placeholder="0" onchange="setGoal('savingsGoal', this.value)"></span>
+          <span class="money"><input class="inp" id="goal-sav-in" type="number" min="0" step="10" inputmode="decimal" value="${st.savingsGoal || ''}" aria-label="Savings goal" oninput="setGoal('savingsGoal', this.value)"></span>
+          <span class="small muted" id="goal-sav-note" style="font-weight:500"></span>
         </label>
       </div>
       <div id="alloc" class="mt-1"></div>
+      <div id="alloc-sav" class="mt-1"></div>
       <button class="btn btn-outline btn-sm mt-1" onclick="suggestBudgets()">✨ Suggest from my history</button>
     </div>
 
     <div class="card">
       <div class="card-label"><span>Categories &amp; subcategories</span></div>
-      <p class="small muted" style="margin-bottom:.75rem">Give a category its own budget, or budget its subcategories and the category uses their total.</p>
+      <p class="small muted" style="margin-bottom:.75rem">Grey amounts are suggestions — the sum of the level below. Type your own to override, and you'll see whether the subcategories fit inside it.</p>
       ${st.categories.map(c => {
-        const color = catColor(c), cb = catBudget(c);
+        const color = catColor(c), cid = esc(c.id);
+        const budgeted = c.kind !== 'exclude';
         return `
-        <details class="cat-edit" ${openCatEdits.has(c.id) ? 'open' : ''} ontoggle="trackOpen('${esc(c.id)}', this.open)">
+        <details class="cat-edit" ${openCatEdits.has(c.id) ? 'open' : ''} ontoggle="trackOpen('${cid}', this.open)">
           <summary>
             <span class="swatch" style="background:${color}"></span>
             <span>${esc(c.icon)} ${esc(c.name)}</span> ${kindTag(c)}
-            <span class="amt">${c.kind === 'exclude' ? '' : cb ? fmt0(cb) : '<span class="muted">no budget</span>'}</span>
+            <span class="amt" id="sum-${cid}">${budgeted ? catSummaryAmt(c) : ''}</span>
           </summary>
           <div class="cat-edit-body">
             <div class="sub-edit" style="grid-template-columns:3.2rem 1fr 110px">
-              <input class="inp sm" value="${esc(c.icon)}" maxlength="4" aria-label="Icon" onchange="setCatField('${esc(c.id)}','icon',this.value)">
-              <input class="inp sm" value="${esc(c.name)}" aria-label="Category name" onchange="setCatField('${esc(c.id)}','name',this.value)">
-              ${c.kind === 'exclude' ? '<span></span>' : `<span class="money"><input class="inp sm" type="number" min="0" step="5" inputmode="decimal" value="${c.budget || ''}" placeholder="${c.subs.reduce((a, s) => a + (+s.budget || 0), 0) || 'Budget'}" aria-label="Category budget" onchange="setCatField('${esc(c.id)}','budget',this.value)"></span>`}
+              <input class="inp sm" value="${esc(c.icon)}" maxlength="4" aria-label="Icon" onchange="setCatField('${cid}','icon',this.value)">
+              <input class="inp sm" value="${esc(c.name)}" aria-label="Category name" onchange="setCatField('${cid}','name',this.value)">
+              ${budgeted ? `<span class="money"><input class="inp sm" id="cb-${cid}" type="number" min="0" step="5" inputmode="decimal" value="${c.budget || ''}" placeholder="${subSum(c) || 'Budget'}" aria-label="Category budget" oninput="setBudget('${cid}', null, this.value)"></span>` : '<span></span>'}
             </div>
+            ${budgeted ? `<div id="calloc-${cid}"></div>` : ''}
             ${c.subs.length ? `<div class="sec-label" style="margin-top:.2rem">Subcategories</div>` : ''}
             ${c.subs.map(sb => `
               <div class="sub-edit">
-                <input class="inp sm" value="${esc(sb.name)}" aria-label="Subcategory name" onchange="setSubField('${esc(c.id)}','${esc(sb.id)}','name',this.value)">
-                ${c.kind === 'exclude' ? '<span></span>' : `<span class="money"><input class="inp sm" type="number" min="0" step="5" inputmode="decimal" value="${sb.budget || ''}" placeholder="Budget" aria-label="Subcategory budget" onchange="setSubField('${esc(c.id)}','${esc(sb.id)}','budget',this.value)"></span>`}
+                <input class="inp sm" value="${esc(sb.name)}" aria-label="Subcategory name" onchange="setSubField('${cid}','${esc(sb.id)}','name',this.value)">
+                ${budgeted ? `<span class="money"><input class="inp sm" type="number" min="0" step="5" inputmode="decimal" value="${sb.budget || ''}" placeholder="Budget" aria-label="Subcategory budget" oninput="setBudget('${cid}','${esc(sb.id)}', this.value)"></span>` : '<span></span>'}
                 <button class="btn-x" title="Delete subcategory" onclick="delSub('${esc(c.id)}','${esc(sb.id)}')">×</button>
               </div>`).join('')}
             <div class="sub-edit" style="grid-template-columns:1fr auto">
@@ -2375,8 +2401,52 @@ function renderBudgetScreen() {
         <button class="btn-subtle" onclick="resetRules()">↺ Restore built-in rules</button>
       </div>
     </div>`;
-  updateAllocation();
+  for (const c of st.categories) if (c.kind !== 'exclude') updateCatAlloc(c);
+  updateGoals();
   filterRules('');
+}
+
+// Header amount for a category, plus a warning chip when its subcategories don't fit
+function catSummaryAmt(c) {
+  const cb = catBudget(c);
+  if (!cb) return '<span class="muted">no budget</span>';
+  const st = c.budget ? allocStatus(subSum(c), +c.budget) : null;
+  return (st && st.key === 'critical' ? chip(st) + ' ' : '') + fmt0(cb);
+}
+
+function updateCatAlloc(c) {
+  const el = document.getElementById('calloc-' + c.id);
+  if (!el) return;
+  const ss = subSum(c);
+  if (c.budget && ss) el.innerHTML = allocHTML(ss, +c.budget, 'Subcategories');
+  else if (ss)        el.innerHTML = `<div class="small muted" style="text-align:right">Suggested: sum of subcategories (${fmt0(ss)}) — type to override</div>`;
+  else                el.innerHTML = '';
+}
+
+function goalNote(override, suggested, field, what) {
+  if (!override) return suggested ? `Suggested: sum of ${what}` : `Set ${what} below, or type a number`;
+  if (Math.abs(override - suggested) < 0.005 || !suggested) return 'Set by you';
+  return `Set by you · ${what} suggest ${fmt0(suggested)} · <a href="#" class="c-pink" onclick="useSuggested('${field}');return false">use it</a>`;
+}
+
+function updateGoals() {
+  const ti = document.getElementById('goal-total-in');
+  if (!ti) return;
+  const st = store.settings;
+  const expSum = catsSum(expenseCats()), savSum = catsSum(savingsCats());
+  ti.placeholder = expSum || '0';
+  document.getElementById('goal-sav-in').placeholder = savSum || '0';
+  document.getElementById('goal-total-note').innerHTML = goalNote(st.total, expSum, 'total', 'categories');
+  document.getElementById('goal-sav-note').innerHTML   = goalNote(st.savingsGoal, savSum, 'savingsGoal', 'savings categories');
+  document.getElementById('alloc').innerHTML     = st.total       ? allocHTML(expSum, st.total, 'Spending categories') : '';
+  document.getElementById('alloc-sav').innerHTML = st.savingsGoal ? allocHTML(savSum, st.savingsGoal, 'Savings categories') : '';
+}
+
+function useSuggested(field) {
+  store.settings[field] = 0;
+  document.getElementById(field === 'total' ? 'goal-total-in' : 'goal-sav-in').value = '';
+  updateGoals();
+  scheduleSave();
 }
 
 function filterRules(q) {
@@ -2398,50 +2468,53 @@ function filterRules(q) {
 
 function trackOpen(id, open) { open ? openCatEdits.add(id) : openCatEdits.delete(id); }
 
-function updateAllocation() {
-  const el = document.getElementById('alloc');
-  if (!el) return;
-  const st = store.settings;
-  const allocated = expenseCats().reduce((a, c) => a + catBudget(c), 0);
-  if (!st.total && !allocated) { el.innerHTML = `<div class="small muted">Tip: tap ✨ to start from what you usually spend.</div>`; return; }
-  const total = st.total || allocated;
-  const diff = total - allocated;
-  const s = diff < 0 ? { key: 'critical', icon: '▲', label: `Over-allocated by ${fmt0(-diff)}` }
-          : diff > 0 ? { key: 'warning', icon: '●', label: `${fmt0(diff)} unallocated` }
-          : { key: 'good', icon: '✓', label: 'Fully allocated' };
-  el.innerHTML = `
-    <div class="row-between small" style="margin-bottom:.35rem">
-      <span>Categories add up to <b>${fmt0(allocated)}</b> of ${fmt0(total)}</span>${chip(s)}
-    </div>
-    ${meterHTML(allocated, total, LINE_COLOR)}`;
-}
-
 function afterSettingsChange(rerender = false) {
   refreshRules();
   scheduleSave();
   if (rerender) renderBudgetScreen();
-  else updateAllocation();
+  else updateGoals();
 }
 
 function setGoal(field, v) {
   store.settings[field] = Math.max(0, parseFloat(v) || 0);
-  afterSettingsChange();
+  updateGoals();
+  scheduleSave();
+}
+
+// Live budget edit — updates the header, the subcategory fit check and the monthly goals
+// as you type, without re-rendering (so the field keeps focus).
+function setBudget(cid, sid, v) {
+  const c = catById(cid);
+  if (!c) return;
+  const val = Math.max(0, parseFloat(v) || 0);
+  if (sid) {
+    const sub = c.subs.find(s => s.id === sid);
+    if (!sub) return;
+    sub.budget = val;
+  } else {
+    c.budget = val;
+  }
+  const inp = document.getElementById('cb-' + cid);
+  if (inp) inp.placeholder = subSum(c) || 'Budget';
+  const sum = document.getElementById('sum-' + cid);
+  if (sum) sum.innerHTML = catSummaryAmt(c);
+  updateCatAlloc(c);
+  updateGoals();
+  scheduleSave();
 }
 
 function setCatField(id, field, v) {
   const c = catById(id);
   if (!c) return;
-  if (field === 'budget') c.budget = Math.max(0, parseFloat(v) || 0);
-  else if (field === 'name') c.name = v.trim() || c.name;
+  if (field === 'name') c.name = v.trim() || c.name;
   else if (field === 'icon') c.icon = v.trim() || '🏷';
-  afterSettingsChange(field !== 'budget');
+  afterSettingsChange(true);
 }
 
 function setSubField(cid, sid, field, v) {
   const sub = catById(cid)?.subs.find(s => s.id === sid);
   if (!sub) return;
-  if (field === 'budget') sub.budget = Math.max(0, parseFloat(v) || 0);
-  else sub.name = v.trim() || sub.name;
+  sub.name = v.trim() || sub.name;
   afterSettingsChange(true);
 }
 
@@ -2509,13 +2582,17 @@ function suggestBudgets() {
   if (!confirm(`Fill every budget with your average over ${use.length} month${use.length !== 1 ? 's' : ''}? This replaces the current amounts.`)) return;
   const up10 = v => v > 0 ? Math.ceil(v / 10) * 10 : 0;
   const avg = fn => use.reduce((a, mo) => a + fn(computeMonth(mo)), 0) / use.length;
+  // Fill the subcategories; categories and totals are left empty so they show the
+  // suggested sums — type over any of them to set your own target.
   for (const c of store.settings.categories) {
-    if (c.kind !== 'expense') continue;
-    c.budget = up10(avg(s => s.cats[c.id]?.spent || 0));
+    if (c.kind === 'exclude') continue;
     for (const sb of c.subs) sb.budget = up10(avg(s => s.cats[c.id]?.subs[sb.id] || 0));
+    const whole = up10(avg(s => s.cats[c.id]?.spent || 0));
+    // Spending that fits no subcategory (or a category without subs) needs the category amount itself
+    c.budget = whole > subSum(c) ? whole : 0;
   }
-  store.settings.total = expenseCats().reduce((a, c) => a + (+c.budget || 0), 0);
-  store.settings.savingsGoal = up10(avg(s => s.savings));
+  store.settings.total = 0;
+  store.settings.savingsGoal = 0;
   afterSettingsChange(true);
 }
 
