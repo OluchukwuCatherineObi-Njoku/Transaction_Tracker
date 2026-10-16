@@ -384,6 +384,28 @@
     .history-arrow { color: #f9a8d4; font-size: .85rem; }
     .history-row .meter { grid-column: 1 / -1; }
 
+    /* ── History grouped by year ── */
+    .hist-head { display: flex; align-items: center; gap: .75rem; }
+    .hist-head .trend-toggle { flex: 1; }
+    #history-content { margin-top: .75rem; }
+    .year-grp + .year-grp { border-top: 1px solid #fce7f3; }
+    .year-row {
+      display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: .6rem;
+      width: 100%; padding: .75rem .5rem; margin: 0 -.5rem; width: calc(100% + 1rem);
+      background: none; border: none; border-radius: 10px; cursor: pointer;
+      font-family: inherit; color: inherit; text-align: left; -webkit-tap-highlight-color: transparent;
+    }
+    .year-row:hover { background: #fdf2f8; }
+    .year-name { font-size: 1rem; font-weight: 800; letter-spacing: -.01em; }
+    .year-meta { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; font-size: .74rem; color: var(--muted); min-width: 0; }
+    .year-row .chev { transition: transform .2s; }
+    .year-row[aria-expanded="true"] .chev { transform: rotate(180deg); }
+    .year-months { padding: 0 0 .4rem .75rem; margin-left: .25rem; border-left: 2px solid #fce7f3; animation: drop .2s ease; }
+    @media (max-width: 460px) {
+      .year-row { grid-template-columns: auto 1fr auto; }
+      .year-row .history-nums { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; }
+    }
+
     /* ── Forms ── */
     .fld       { display: flex; flex-direction: column; gap: .3rem; font-size: .8rem; color: var(--text2); font-weight: 600; }
     .fld-row   { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
@@ -792,11 +814,14 @@
 
       <!-- Monthly history -->
       <div class="card">
-        <div class="card-label">
-          <span>Monthly history</span>
+        <div class="hist-head">
+          <button class="trend-toggle" id="hist-toggle" onclick="toggleHistory()" aria-expanded="false">
+            <span id="hist-label">📅 History</span>
+            <span class="chev">▾</span>
+          </button>
           <button class="btn-icon" id="clear-history-btn" onclick="confirmClearHistory()" hidden>🗑 Clear all</button>
         </div>
-        <div id="history-content"></div>
+        <div id="history-content" hidden></div>
       </div>
 
       <!-- All-time summary -->
@@ -1950,7 +1975,7 @@ function renderTrend() {
   const keys = Object.keys(store.months).sort().slice(-12);
   if (keys.length < 3) { card.hidden = true; return; }
   card.hidden = false;
-  const open = !!store.settings.ui?.trendsOpen;
+  const open = uiPref('trendsOpen', false);
   document.getElementById('trend-toggle').setAttribute('aria-expanded', open);
   document.getElementById('trend-body').hidden = !open;
   if (!open) return;
@@ -2235,7 +2260,7 @@ async function handleLockChange() {
 // wiping this device. tracker_2's data and the Google Drive copy are not touched.
 function eraseAndStartOver() {
   if (!confirm("Erase Transaction Tracker's data on this device?\n\nThis can't be undone. tracker_2 is not affected. A copy in Google Drive (if you connected it) stays there — you can replace it after setting up again.")) return;
-  for (const k of [VAULT_KEY, SK_KEY, DRIVE_KEY]) localStorage.removeItem(k);
+  for (const k of [VAULT_KEY, SK_KEY, DRIVE_KEY, UI_KEY]) localStorage.removeItem(k);
   driveState = { connected: false };
   gToken = null;
   showLockView('welcome');
@@ -2790,6 +2815,11 @@ function renderMain(highlightMonths = []) {
   renderLatest(keys);
   renderTrend();
   renderAllTimeSummary(keys);
+  // Uploading files opens the history at the years you just updated (once — you can close them after)
+  if (highlightMonths.length) {
+    setUiPref('historyOpen', true);
+    setUiPref('openYears', [...new Set([...uiPref('openYears', []), ...highlightMonths.map(m => m.slice(0, 4))])]);
+  }
   renderHistory(keys, highlightMonths);
 }
 
@@ -2868,9 +2898,7 @@ function renderLatest(keys) {
 }
 
 function toggleTrends() {
-  const ui = store.settings.ui ||= {};
-  ui.trendsOpen = !ui.trendsOpen;
-  scheduleSave();
+  setUiPref('trendsOpen', !uiPref('trendsOpen', false));
   renderTrend();
 }
 
@@ -2900,17 +2928,74 @@ function renderAllTimeSummary(keys) {
   section.hidden = false;
 }
 
+// View state (what's expanded) is per device — kept out of the synced settings so toggling a
+// section on one device can never overwrite a budget change made on another.
+const UI_KEY = 'tt_v4_ui';
+function uiPref(k, dflt) { const p = readJSON(UI_KEY) || {}; return k in p ? p[k] : dflt; }
+function setUiPref(k, v) { const p = readJSON(UI_KEY) || {}; p[k] = v; localStorage.setItem(UI_KEY, JSON.stringify(p)); }
+
+let lastHistoryArgs = [[], []];
+function toggleHistory() {
+  setUiPref('historyOpen', !uiPref('historyOpen', false));
+  renderHistory(...lastHistoryArgs);
+}
+function toggleYear(y) {
+  const open = new Set(uiPref('openYears', []));
+  open.has(y) ? open.delete(y) : open.add(y);
+  setUiPref('openYears', [...open]);
+  renderHistory(...lastHistoryArgs);
+}
+
 function renderHistory(keys, highlightMonths = []) {
+  lastHistoryArgs = [keys, highlightMonths];
   const el  = document.getElementById('history-content');
   const btn = document.getElementById('clear-history-btn');
+  const tog = document.getElementById('hist-toggle');
   if (!keys.length) {
     btn.hidden = true;
+    tog.setAttribute('aria-expanded', 'true');
+    document.getElementById('hist-label').textContent = '📅 History';
+    el.hidden = false;
     el.innerHTML = `<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">No history yet — process some CSV files above</div></div>`;
     return;
   }
   btn.hidden = false;
+  const open = uiPref('historyOpen', false);
+  document.getElementById('hist-label').textContent = `📅 History (${keys.length} month${keys.length !== 1 ? 's' : ''})`;
+  tog.setAttribute('aria-expanded', open);
+  el.hidden = !open;
+  if (!open) return;
+
   const budget = totalBudget();
-  el.innerHTML = keys.map(mo => {
+  const openYears = new Set(uiPref('openYears', []));
+  const years = [...new Set(keys.map(k => k.slice(0, 4)))].sort().reverse();
+  el.innerHTML = years.map(y => {
+    const months = keys.filter(k => k.startsWith(y));
+    const sums = months.map(computeMonth).reduce((a, d) => ({ income: a.income + d.income, expense: a.expense + d.expense, balance: a.balance + d.balance }), { income: 0, expense: 0, balance: 0 });
+    const over = budget ? months.filter(m => computeMonth(m).expense > budget).length : 0;
+    const status = !budget ? ''
+      : over ? chip({ key: 'critical', icon: '▲', label: `${over} over budget` })
+      : chip({ key: 'good', icon: '✓', label: 'All on budget' });
+    const updated = months.some(m => highlightMonths.includes(m));
+    const isOpen = openYears.has(y);
+    return `
+      <div class="year-grp">
+        <button class="year-row" onclick="toggleYear('${y}')" aria-expanded="${isOpen}">
+          <span class="year-name">${y}</span>
+          <span class="year-meta">${months.length} month${months.length !== 1 ? 's' : ''} ${status} ${updated ? '<span class="badge badge-new">updated</span>' : ''}</span>
+          <span class="history-nums">
+            <span class="c-green"  title="Income ${y}">${fmtShort(sums.income)}</span>
+            <span class="c-orange" title="Expense ${y}">${fmtShort(sums.expense)}</span>
+            <span class="${sums.balance >= 0 ? 'c-green' : 'c-red'}" title="Balance ${y}">${fmtShort(sums.balance)}</span>
+          </span>
+          <span class="chev">▾</span>
+        </button>
+        ${isOpen ? `<div class="year-months">${months.map(mo => historyRowHTML(mo, budget, highlightMonths)).join('')}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function historyRowHTML(mo, budget, highlightMonths) {
     const d = computeMonth(mo);
     const st = monthStatus(d.expense, budget, mo);
     const isNew = highlightMonths.includes(mo);
@@ -2929,7 +3014,6 @@ function renderHistory(keys, highlightMonths = []) {
         <span class="history-arrow">›</span>
         ${budget ? meterHTML(d.expense, budget, d.expense > budget ? STATUS.critical : '#ec4899', { size: 'sm' }) : ''}
       </div>`;
-  }).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3620,14 +3704,12 @@ function renderAddRecent() {
 // ── Month view: full transaction list ──
 let txReg = [];
 function toggleTxList() {
-  const ui = store.settings.ui ||= {};
-  ui.txOpen = !ui.txOpen;
-  scheduleSave();
+  setUiPref('txOpen', !uiPref('txOpen', false));
   renderTxList(computeMonth(currentMonth));
 }
 
 function renderTxList(s) {
-  const open = !!store.settings.ui?.txOpen;
+  const open = uiPref('txOpen', false);
   const shown = s.items.filter(({ c }) => c.kind !== 'transfer');
   const hidden = s.items.length - shown.length;
   $id('tx-toggle-label').textContent = `📄 All transactions (${shown.length})`;
