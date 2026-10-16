@@ -448,6 +448,112 @@
     .trend-toggle:hover { color: var(--primary); }
     .trend-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
 
+    /* ── Quick add ── */
+    .quick-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; }
+    .quick-btn {
+      display: flex; flex-direction: column; align-items: center; gap: .15rem;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: .7rem .4rem; font-size: 1.35rem; cursor: pointer; box-shadow: var(--shadow);
+      font-family: inherit; transition: background .12s, transform .1s; -webkit-tap-highlight-color: transparent;
+    }
+    .quick-btn span { font-size: .75rem; font-weight: 650; color: var(--text2); }
+    .quick-btn:hover  { background: #fdf2f8; }
+    .quick-btn:active { transform: scale(.96); }
+
+    .seg {
+      display: flex; gap: 4px; padding: 4px; background: #fff;
+      border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow);
+    }
+    .seg-btn {
+      flex: 1; border: none; background: none; padding: .65rem .4rem; border-radius: 10px;
+      font-family: inherit; font-size: .86rem; font-weight: 650; color: var(--text2); cursor: pointer;
+    }
+    .seg-btn.on { background: linear-gradient(135deg, #db2777, #be185d); color: #fff; box-shadow: 0 2px 8px rgba(190,24,93,.25); }
+
+    .amt-row { display: flex; gap: .6rem; align-items: stretch; }
+    .amt-row .money { flex: 1; }
+    .money.big .inp { font-size: 1.6rem; font-weight: 800; padding: .55rem .8rem .55rem 1.75rem; letter-spacing: -.02em; }
+    .money.big::before { font-size: 1.25rem; left: .75rem; }
+    .pm { display: flex; border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden; flex: none; }
+    .pm-btn {
+      width: 52px; border: none; background: #fff; font-size: 1.35rem; font-weight: 800;
+      color: var(--muted); cursor: pointer; font-family: inherit;
+    }
+    .pm-btn + .pm-btn { border-left: 1.5px solid var(--border); }
+    .pm-btn.on.plus  { background: #ecfdf5; color: var(--green); }
+    .pm-btn.on.minus { background: #fff1f2; color: #be123c; }
+    .pm-hint { font-size: .72rem; color: var(--muted); margin-top: .35rem; }
+    .bubbles { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
+    .bubble {
+      min-width: 58px; height: 44px; padding: 0 .85rem; border-radius: 999px;
+      border: 1.5px solid #f9a8d4; background: #fff; color: var(--prim2);
+      font-family: inherit; font-size: .95rem; font-weight: 750; cursor: pointer;
+      transition: transform .08s, background .12s; -webkit-tap-highlight-color: transparent;
+    }
+    .bubble:hover  { background: #fdf2f8; }
+    .bubble:active { transform: scale(.9); }
+    .bubbles.minus .bubble:not(.clear) { border-color: #fda4af; color: #be123c; background: #fff1f2; }
+    .bubble.clear { border-style: dashed; border-color: var(--border); color: var(--muted); font-weight: 600; }
+
+    /* minmax(0, 1fr) keeps the columns equal — plain 1fr lets a long name widen its card */
+    .guess-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+    .guess { position: relative; min-width: 0; border: 1.5px solid var(--border); border-radius: 14px; background: #fdf2f8; }
+    .guess.pinned { border-color: #f9a8d4; background: #fce7f3; }
+    .guess-main {
+      width: 100%; border: none; background: none; cursor: pointer; text-align: left;
+      padding: .75rem 2.1rem .75rem .8rem; font-family: inherit; border-radius: 13px;
+      display: flex; flex-direction: column; gap: .1rem; min-height: 84px; justify-content: center;
+    }
+    .guess-main:hover  { background: rgba(255,255,255,.6); }
+    .guess-main:active { transform: scale(.98); }
+    .g-amt, .g-lbl, .g-tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .g-amt { font-size: 1.2rem; font-weight: 800; color: var(--text); letter-spacing: -.02em; }
+    .g-lbl { font-size: .76rem; color: var(--text2); }
+    .g-tag { font-size: .6rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+    .g-cat { color: var(--muted); font-size: .7rem; }
+    /* Names get up to two lines before the "…"; only the top line leaves room for ✎ */
+    .guess-main { padding-right: .8rem; }
+    .g-tag { padding-right: 1.5rem; }
+    .g-lbl:not(.g-cat) {
+      white-space: normal; overflow-wrap: anywhere; line-height: 1.3;
+      display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical;
+    }
+    .guess-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+    .cols-3 .guess-main { padding: .65rem .6rem; }
+    .cols-3 .g-tag { padding-right: 1.3rem; }
+    .cols-3 .g-amt  { font-size: 1.05rem; }
+    .cols-3 .g-edit { top: .15rem; right: .1rem; }
+    .cols-3 .guess-form { padding: .5rem; }
+    .g-edit { position: absolute; top: .3rem; right: .3rem; }
+    .guess.empty .guess-main { align-items: center; color: var(--muted); font-size: .82rem; font-weight: 600; padding-right: .8rem; }
+    .guess-form { padding: .6rem; display: flex; flex-direction: column; gap: .4rem; }
+    .guess-form .row { display: flex; gap: .35rem; flex-wrap: wrap; }
+
+    /* ── Transaction list ── */
+    .tx-row { display: flex; align-items: center; gap: .6rem; padding: .55rem 0; border-bottom: 1px solid #fce7f3; font-size: .82rem; }
+    .tx-row:last-child { border-bottom: none; }
+    .tx-date { color: var(--muted); font-size: .74rem; width: 2.5rem; flex: none; }
+    .tx-main { flex: 1; min-width: 0; }
+    .tx-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 560; }
+    .tx-meta { display: block; font-size: .7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tx-amt  { font-weight: 700; white-space: nowrap; }
+    .tag-manual { font-size: .58rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: .08rem .35rem; border-radius: 4px; background: #fef3c7; color: #92400e; margin-left: .3rem; vertical-align: 1px; }
+
+    .toast {
+      position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 320;
+      background: #1f2937; color: #fff; border-radius: 12px; padding: .65rem .95rem;
+      display: flex; align-items: center; gap: .9rem; font-size: .85rem;
+      box-shadow: 0 8px 24px rgba(0,0,0,.2); max-width: calc(100% - 32px); animation: up .2s ease;
+    }
+    .toast button { background: none; border: none; color: #f9a8d4; font-weight: 800; cursor: pointer; font-family: inherit; font-size: .85rem; white-space: nowrap; }
+
+    @media (max-width: 440px) {
+      .hdr { padding: .75rem .8rem; }
+      .hdr-title { font-size: .9rem; }
+      .hdr .btn-sm { padding: .4rem .6rem; }
+      .hdr .lbl { display: none; }
+    }
+
     .callout {
       display: flex; align-items: center; gap: .7rem; cursor: pointer;
       background: #fff; border: 1px dashed #f9a8d4; border-radius: 14px; padding: .75rem .9rem;
@@ -518,8 +624,9 @@
     <span class="hdr-title">💳 Transaction Tracker</span>
     <div class="hdr-right">
       <span class="save-ind" id="save-ind">✓ Saved</span>
-      <button class="btn btn-ghost btn-sm" onclick="showBudget()">🎯 Budget</button>
-      <button class="btn btn-ghost btn-sm" onclick="lock()">🔒 Lock</button>
+      <button class="btn btn-ghost btn-sm" onclick="showAdd()">➕<span class="lbl"> Add</span></button>
+      <button class="btn btn-ghost btn-sm" onclick="showBudget()">🎯<span class="lbl"> Budget</span></button>
+      <button class="btn btn-ghost btn-sm" onclick="lock()" aria-label="Lock">🔒<span class="lbl"> Lock</span></button>
     </div>
   </header>
 
@@ -562,6 +669,13 @@
 
       <!-- Budget setup nudge -->
       <div id="setup-nudge" hidden></div>
+
+      <!-- Quick add -->
+      <div class="quick-row">
+        <button class="quick-btn" onclick="showAdd('expense')">💸<span>Expense</span></button>
+        <button class="quick-btn" onclick="showAdd('income')">💰<span>Income</span></button>
+        <button class="quick-btn" onclick="showAdd('savings')">🐷<span>Savings</span></button>
+      </div>
 
       <!-- Latest month — one slim line -->
       <div id="latest-section" hidden></div>
@@ -630,6 +744,14 @@
       </div>
 
       <div class="card">
+        <button class="trend-toggle" id="tx-toggle" onclick="toggleTxList()" aria-expanded="false">
+          <span id="tx-toggle-label">📄 All transactions</span>
+          <span class="chev">▾</span>
+        </button>
+        <div id="tx-body" hidden></div>
+      </div>
+
+      <div class="card">
         <div class="card-label">Download this month</div>
         <p class="small muted" style="margin-bottom:.7rem">Every transaction with its account, category and subcategory, plus a budget summary.</p>
         <div class="dl-col">
@@ -637,6 +759,24 @@
             ↓&nbsp; <span id="dl-month-label"></span>.csv
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- ─── ADD SCREEN ─── -->
+    <div id="screen-add" class="screen" hidden>
+      <div class="page-head">
+        <span class="page-title">➕ Add a transaction</span>
+        <button class="btn btn-ghost btn-sm" onclick="backFromAdd()">← Back</button>
+      </div>
+      <div class="seg" role="tablist">
+        <button class="seg-btn" data-tab="expense" onclick="setAddTab('expense')">💸 Expense</button>
+        <button class="seg-btn" data-tab="income"  onclick="setAddTab('income')">💰 Income</button>
+        <button class="seg-btn" data-tab="savings" onclick="setAddTab('savings')">🐷 Savings</button>
+      </div>
+      <div id="add-content" class="screen"></div>
+      <div class="card">
+        <div class="card-label"><span>Added by you</span><span class="c-muted" style="text-transform:none;letter-spacing:0;font-weight:500">matched to the bank on upload</span></div>
+        <div id="add-recent"></div>
       </div>
     </div>
 
@@ -700,6 +840,7 @@
   </div>
 
   <div id="tt" class="tt" role="tooltip" hidden></div>
+  <div id="toast" class="toast" role="status" hidden><span id="toast-msg"></span><button id="toast-act" hidden></button></div>
 </div><!-- /#app -->
 
 <script>
@@ -723,6 +864,7 @@ const GRAY          = '#a8a29e';
 const SAVINGS_COLOR = '#7c3aed';
 const LINE_COLOR    = '#db2777';
 const STATUS        = { good: '#0ca30c', warning: '#fab219', serious: '#ec835a', critical: '#d03b3b' };
+const GUESS_SLOTS   = { expense: 3, income: 2, savings: 2 };   // quick-record blocks per tab
 
 // ═══════════════════════════════════════════════════════════════
 // Default categories & rules
@@ -964,6 +1106,18 @@ function normalizeStore(data) {
   st.savingsGoal = +st.savingsGoal || 0;
   st.categories  = st.categories?.length ? st.categories : defaultCategories();
   st.rules       = Array.isArray(st.rules) ? st.rules : defaultRules();
+  // Quick-record presets you've pinned (null = use the auto guess)
+  st.quick     ||= {};
+  for (const [k, n] of Object.entries(GUESS_SLOTS)) {
+    // Keep each pin in its slot; a pin beyond the slot count moves into a free slot
+    const old = st.quick[k] || [];
+    const slots = Array.from({ length: n }, (_, i) => old[i] || null);
+    for (const extra of old.slice(n).filter(Boolean)) {
+      const free = slots.indexOf(null);
+      if (free >= 0) slots[free] = extra;
+    }
+    st.quick[k] = slots;
+  }
   // The fallback buckets must always exist
   for (const req of defaultCategories().filter(c => c.locked))
     if (!st.categories.some(c => c.id === req.id)) st.categories.push(req);
@@ -1075,14 +1229,55 @@ function mergeTransactions(existing, incoming) {
   const groups = new Map();
   for (const t of existing) { const k = txKey(t); if (!groups.has(k)) groups.set(k, { a: [], b: [] }); groups.get(k).a.push(t); }
   for (const t of incoming) { const k = txKey(t); if (!groups.has(k)) groups.set(k, { a: [], b: [] }); groups.get(k).b.push(t); }
-  const out = [];
+  const out = [], fresh = [];
   let added = 0;
   for (const { a, b } of groups.values()) {
-    if (b.length >= a.length) { out.push(...b); added += b.length - a.length; }
-    else out.push(...a);
+    if (b.length >= a.length) {
+      // Keep any category you chose on the rows we already had
+      a.forEach((old, i) => { if (old.cat) { b[i].cat = old.cat; b[i].sub = old.sub; } });
+      out.push(...b);
+      fresh.push(...b.slice(a.length));
+      added += b.length - a.length;
+    } else out.push(...a);
   }
   out.sort((x, y) => x.date.localeCompare(y.date));
-  return { merged: out, added };
+  return { merged: out, added, fresh };
+}
+
+// A manual entry is replaced by the bank's version once it shows up: same kind, same
+// amount, within 3 days. Your chosen category carries over to the bank's row.
+function reconcileManual(fresh) {
+  if (!fresh.length) return 0;
+  const sig = t => {
+    const k = classify(t).kind;
+    const kind = k === 'exclude' ? 'expense' : k;
+    return [kind, +(t.income || t.savings || t.expense || 0).toFixed(2)];
+  };
+  const day = d => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 864e5;
+  const freshSig = fresh.map(f => ({ f, s: sig(f), d: day(f.date) }));
+  const used = new Set();
+  let n = 0;
+  for (const mo of Object.keys(store.months)) {
+    const txs = store.months[mo].transactions;
+    const drop = new Set();
+    for (const m of txs) {
+      if (!m.manual) continue;
+      const [mk, ma] = sig(m), md = day(m.date);
+      let best = null, bestD = 4;
+      for (const x of freshSig) {
+        if (used.has(x.f) || x.s[0] !== mk || x.s[1] !== ma) continue;
+        const dd = Math.abs(x.d - md);
+        if (dd < bestD) { best = x; bestD = dd; }
+      }
+      if (!best) continue;
+      used.add(best.f);
+      if (m.cat) { best.f.cat = m.cat; best.f.sub = m.sub; }
+      drop.add(m);
+      n++;
+    }
+    if (drop.size) store.months[mo].transactions = txs.filter(t => !drop.has(t));
+  }
+  return n;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1123,6 +1318,11 @@ function validSub(cat, subId) { return subId && cat.subs.some(s => s.id === subI
 
 function classify(t) {
   const text = t.raw || t.name;
+  // A category picked by hand (quick add, or carried over from one) beats the rules
+  if (t.cat && catById(t.cat) && !(t.income > 0 && !t.expense && !t.savings)) {
+    const cat = catById(t.cat);
+    return { kind: cat.kind, cat: cat.id, sub: validSub(cat, t.sub), rule: null };
+  }
   if (t.savings > 0) {
     const r = matchRule(text, r => catById(r.cat).kind === 'savings');
     const cat = r ? catById(r.cat) : catById('savings');
@@ -1427,7 +1627,7 @@ function renderDonut(el, s) {
         ${segs.map((x, i) => `
           <div class="dl-row" data-i="${i}">
             <span class="lk-rect" style="background:${x.color}"></span>
-            <span class="nm">${esc(x.icon)} ${esc(x.name)}</span>
+            <span class="nm" title="${esc(x.name)}">${esc(x.icon)} ${esc(x.name)}</span>
             <span class="pc">${pct(x.amt, total)}%</span>
             <span class="am">${fmt0(x.amt)}</span>
           </div>`).join('')}
@@ -1844,7 +2044,7 @@ async function handleChangePassword() {
 // ═══════════════════════════════════════════════════════════════
 
 function showScreen(name) {
-  for (const s of ['main', 'detail', 'budget', 'chpwd'])
+  for (const s of ['main', 'detail', 'add', 'budget', 'chpwd'])
     document.getElementById('screen-' + s).hidden = s !== name;
   hideTip();
   window.scrollTo({ top: 0 });
@@ -2071,6 +2271,7 @@ function renderDetail() {
   renderDonut(document.getElementById('detail-donut'), s);
   renderCategoryBreakdown(mo, s);
   renderPace(document.getElementById('detail-pace'), document.getElementById('pace-legend'), mo, s, budget);
+  renderTxList(s);
 
   document.getElementById('dl-month-label').textContent = mo;
   document.getElementById('dl-month-btn').onclick = () => downloadBlob(`${mo}.csv`, buildMonthDetailCSV(mo));
@@ -2135,7 +2336,7 @@ function renderCategoryBreakdown(mo, s) {
         <button class="cat-head" onclick="toggleCat('${esc(c.id)}')" aria-expanded="${open}">
           <span class="cat-ico" style="background:${color}22">${esc(c.icon)}</span>
           <span class="cat-main">
-            <span class="cat-name">${esc(c.name)}</span>
+            <span class="cat-name" title="${esc(c.name)}">${esc(c.name)}</span>
             <span class="cat-sub"><b>${fmt(spent)}</b>${budget ? ` of ${fmt0(budget)}` : ''} · ${b?.n || 0} txn${(b?.n || 0) !== 1 ? 's' : ''}${budget && spent < budget ? ` · ${fmt0(budget - spent)} left` : ''}</span>
           </span>
           ${chip(st)}
@@ -2295,14 +2496,454 @@ function saveRuleFromModal() {
   showToastAlert(`Saved — anything containing “${pattern}” now goes to ${cat.name}.`);
 }
 
-function showToastAlert(msg) {
-  // Reuse the main alert box when visible, otherwise a brief tooltip-style toast
-  const el = tt();
-  el.innerHTML = `<div class="tt-row"><b>✓</b><span style="color:#fff">${esc(msg)}</span></div>`;
+function showToastAlert(msg) { showToast('✓ ' + msg); }
+
+let toastTimer = null;
+function showToast(msg, actionLabel, action) {
+  const el = document.getElementById('toast'), act = document.getElementById('toast-act');
+  document.getElementById('toast-msg').textContent = msg;
+  act.hidden = !actionLabel;
+  act.textContent = actionLabel || '';
+  act.onclick = () => { el.hidden = true; action && action(); };
   el.hidden = false;
-  el.style.left = Math.max(8, (window.innerWidth - el.offsetWidth) / 2) + 'px';
-  el.style.top  = (window.innerHeight - el.offsetHeight - 24) + 'px';
-  setTimeout(hideTip, 2600);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, actionLabel ? 6000 : 2800);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Add screen — manual expenses, income & savings
+// ═══════════════════════════════════════════════════════════════
+
+let addTab = 'expense', addReturnTo = 'main', qaMode = '+', qaCatTouched = false, editingGuess = null;
+const BUBBLES = [1, 10, 20, 100, 1000];
+const $id = id => document.getElementById(id);
+const todayStr = () => fmtDate(new Date());
+const round2 = n => Math.round(n * 100) / 100;
+
+function showAdd(tab) {
+  if (!document.getElementById('screen-add').hidden) { if (tab) setAddTab(tab); return; }
+  addReturnTo = currentMonth ? 'detail' : 'main';
+  showScreen('add');
+  setAddTab(tab || addTab);
+}
+
+function backFromAdd() {
+  if (addReturnTo === 'detail' && currentMonth && store.months[currentMonth]) openMonth(currentMonth);
+  else showMain();
+}
+
+function setAddTab(tab) {
+  addTab = tab;
+  qaCatTouched = false;
+  editingGuess = null;
+  document.querySelectorAll('#screen-add .seg-btn').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  renderAddScreen();
+}
+
+function amountWidget() {
+  return `
+    <div class="fld mt-1" role="group" aria-label="Amount">Amount
+      <div class="amt-row">
+        <span class="money big"><input class="inp" id="qa-amt" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" aria-label="Amount"></span>
+        <div class="pm" role="group" aria-label="Bubble mode">
+          <button type="button" class="pm-btn plus${qaMode === '+' ? ' on' : ''}"  onclick="setPM('+')" title="Bubbles add"      aria-pressed="${qaMode === '+'}">＋</button>
+          <button type="button" class="pm-btn minus${qaMode === '-' ? ' on' : ''}" onclick="setPM('-')" title="Bubbles subtract" aria-pressed="${qaMode === '-'}">−</button>
+        </div>
+      </div>
+      <div class="bubbles${qaMode === '-' ? ' minus' : ''}" id="qa-bubbles">
+        ${BUBBLES.map(n => `<button type="button" class="bubble" onclick="bump(${n})"><span class="sgn">${qaMode === '-' ? '−' : '+'}</span>${n.toLocaleString('en-CA')}</button>`).join('')}
+        <button type="button" class="bubble clear" onclick="$id('qa-amt').value='';$id('qa-amt').focus()">Clear</button>
+      </div>
+      <div class="pm-hint" id="qa-pm-hint">${qaMode === '-' ? 'Minus mode: bubbles take away from the amount.' : 'Tap bubbles to add to the amount, or type it yourself.'}</div>
+    </div>`;
+}
+
+function setPM(mode) {
+  qaMode = mode;
+  document.querySelectorAll('.pm-btn').forEach(b => {
+    const on = b.classList.contains(mode === '+' ? 'plus' : 'minus');
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on);
+  });
+  const bub = $id('qa-bubbles');
+  bub.classList.toggle('minus', mode === '-');
+  bub.querySelectorAll('.sgn').forEach(s => s.textContent = mode === '-' ? '−' : '+');
+  $id('qa-pm-hint').textContent = mode === '-' ? 'Minus mode: bubbles take away from the amount.' : 'Tap bubbles to add to the amount, or type it yourself.';
+}
+
+function bump(n) {
+  const inp = $id('qa-amt');
+  const v = parseFloat(inp.value) || 0;
+  const next = qaMode === '-' ? Math.max(0, v - n) : v + n;
+  inp.value = next ? round2(next) : '';
+}
+
+function catOptions(kind, selected) {
+  return store.settings.categories.filter(c => c.kind === kind)
+    .map(c => `<option value="${esc(c.id)}"${c.id === selected ? ' selected' : ''}>${esc(c.icon)} ${esc(c.name)}</option>`).join('');
+}
+function subOptions(catId, selected) {
+  const c = catById(catId);
+  return `<option value="">— none —</option>` + (c?.subs || [])
+    .map(s => `<option value="${esc(s.id)}"${s.id === selected ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
+}
+function qaFillSubs(selected) { $id('qa-sub').innerHTML = subOptions($id('qa-cat').value, selected); }
+
+// Typing a name that matches a rule pre-picks its category (until you choose one yourself)
+function qaNameChanged() {
+  if (qaCatTouched || addTab !== 'expense') return;
+  const r = matchRule($id('qa-name').value.trim(), r => catById(r.cat).kind === 'expense');
+  if (!r) return;
+  $id('qa-cat').value = r.cat;
+  qaFillSubs(validSub(catById(r.cat), r.sub));
+}
+
+function renderAddScreen() {
+  const el = $id('add-content');
+  const dateFld = `<label class="fld mt-1">Date <input class="inp" type="date" id="qa-date" value="${todayStr()}"></label>`;
+  const err = `<div id="qa-err" class="lock-err" hidden></div>`;
+  const quickCard = `
+      <div class="card">
+        <div class="card-label">
+          <span>Quick record</span>
+          <span class="c-muted" style="text-transform:none;letter-spacing:0;font-weight:500">tap to record today · ✎ to adjust</span>
+        </div>
+        <div class="guess-grid cols-${GUESS_SLOTS[addTab]}" id="guesses"></div>
+      </div>`;
+
+  if (addTab === 'expense') {
+    const names = [...new Set(allTx().filter(t => t.expense > 0).map(t => t.manual ? t.name : cleanDesc(t.raw || t.name).label))].slice(0, 60);
+    el.innerHTML = quickCard + `
+      <div class="card">
+        <div class="card-label"><span>Or enter it yourself</span></div>
+        <label class="fld">What was it?
+          <input class="inp" id="qa-name" list="qa-names" placeholder="e.g. Lunch, Uber home, Shoppers" oninput="qaNameChanged()" autocomplete="off">
+        </label>
+        <datalist id="qa-names">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+        <div class="fld-row mt-1">
+          <label class="fld">Category <select class="sel" id="qa-cat" onchange="qaCatTouched = true; qaFillSubs()">${catOptions('expense', 'misc')}</select></label>
+          <label class="fld">Subcategory <select class="sel" id="qa-sub" onchange="qaCatTouched = true"></select></label>
+        </div>
+        ${amountWidget()}
+        ${dateFld}
+        ${err}
+        <button class="btn btn-primary btn-full mt-1" onclick="saveQuick()">💸 Add expense</button>
+      </div>`;
+    qaFillSubs();
+    renderGuesses();
+  } else {
+    const isSav = addTab === 'savings';
+    el.innerHTML = quickCard + `
+      <div class="card">
+        <div class="card-label"><span>Or enter it yourself</span></div>
+        <label class="fld">${isSav ? 'What is it?' : 'From'}
+          <input class="inp" id="qa-name" placeholder="${isSav ? 'e.g. TFSA, Emergency fund' : 'e.g. Paycheque, Refund, Side gig'}" autocomplete="off">
+        </label>
+        ${isSav ? `
+        <div class="fld-row mt-1">
+          <label class="fld">Category <select class="sel" id="qa-cat" onchange="qaFillSubs()">${catOptions('savings', 'savings')}</select></label>
+          <label class="fld">Subcategory <select class="sel" id="qa-sub"></select></label>
+        </div>` : ''}
+        ${amountWidget()}
+        ${dateFld}
+        ${err}
+        <button class="btn btn-primary btn-full mt-1" onclick="saveQuick()">${isSav ? '🐷 Record savings' : '💰 Record income'}</button>
+      </div>`;
+    if (isSav) qaFillSubs(validSub(catById($id('qa-cat').value), 'transfers'));
+    renderGuesses();
+  }
+  renderAddRecent();
+}
+
+function allTx() {
+  return Object.keys(store.months).sort().reverse().flatMap(mo => [...store.months[mo].transactions].reverse());
+}
+
+// Expenses: your most frequent purchases, one per merchant, at the amount you usually pay
+function expenseGuesses() {
+  const groups = new Map();
+  for (const t of allTx()) {                       // newest first
+    const c = classify(t);
+    if (c.kind !== 'expense') continue;
+    const label = t.manual ? t.name : cleanDesc(t.raw || t.name).label;
+    const k = label.toUpperCase();
+    if (!groups.has(k)) groups.set(k, { label, cat: c.cat, sub: c.sub, amts: [] });
+    groups.get(k).amts.push(t.expense);
+  }
+  const total = g => g.amts.reduce((a, x) => a + x, 0);
+  return [...groups.values()]
+    .sort((a, b) => b.amts.length - a.amts.length || total(b) - total(a))
+    .map(g => {
+      const counts = new Map();
+      for (const a of g.amts) counts.set(a, (counts.get(a) || 0) + 1);
+      const [amt, n] = [...counts].sort((x, y) => y[1] - x[1])[0];   // ties keep the most recent
+      const sorted = [...g.amts].sort((a, b) => a - b), mid = sorted.length >> 1;
+      const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      // Same price every time → that price; varies → the typical (median); seen once or twice → the last one
+      const [amount, tag] = n > 1 ? [amt, 'usual'] : g.amts.length >= 3 ? [median, 'typical'] : [g.amts[0], 'last'];
+      return { label: g.label, amount: round2(amount), tag, times: g.amts.length, cat: g.cat, sub: g.sub };
+    });
+}
+
+// Income & savings: the amounts of your most common source, topped up with your other
+// regular sources. Pinned presets replace a guess for good.
+function guessesFor(kind) {
+  if (kind === 'expense') return expenseGuesses();
+  const items = [];
+  for (const t of allTx()) {
+    if (kind === 'income') {
+      if (t.income >= 5 && !t.expense && !t.savings) items.push({ label: t.manual ? t.name : cleanDesc(t.raw || t.name).label, amt: t.income });
+    } else {
+      const c = classify(t);
+      if (c.kind === 'savings') items.push({ label: t.manual ? t.name : cleanDesc(t.raw || t.name).label, amt: t.savings || t.expense, cat: c.cat, sub: c.sub });
+    }
+  }
+  if (!items.length) return [];
+  const groups = {};
+  for (const it of items) (groups[it.label.toUpperCase()] ||= []).push(it);
+  const ranked = Object.values(groups).sort((a, b) => b.length - a.length || b.reduce((s, x) => s + x.amt, 0) - a.reduce((s, x) => s + x.amt, 0));
+  const median = xs => { const s = [...xs].sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+  const top = ranked[0], recent = top.slice(0, 12).map(x => x.amt);
+  const out = [];
+  const push = (g, amt, tag) => { amt = round2(amt); if (amt > 0 && !out.some(o => Math.abs(o.amount - amt) < 0.005)) out.push({ label: g[0].label, amount: amt, tag, cat: g[0].cat, sub: g[0].sub }); };
+  if (new Set(recent).size >= 3) {
+    // Amounts vary: your typical amount, then the most recent one
+    push(top, median(recent), 'typical');
+    push(top, recent[0], 'last');
+  } else {
+    // Only one or two distinct amounts: offer the real ones (most frequent, then most recent)
+    const counts = new Map();
+    for (const a of recent) counts.set(a, (counts.get(a) || 0) + 1);
+    [...counts].sort((x, y) => y[1] - x[1]).forEach(([a, n]) => push(top, a, n > 1 ? 'usual' : 'recent'));
+  }
+  for (const g of ranked.slice(1)) push(g, median(g.map(x => x.amt)), 'regular');
+  return out;
+}
+
+// Pinned presets keep their slot; automatic guesses fill the remaining slots in order
+function effectiveGuesses(kind) {
+  const pins = store.settings.quick[kind];
+  // Don't repeat a pinned preset as a guess (same merchant for expenses, same amount otherwise)
+  const same = kind === 'expense'
+    ? (p, g) => p.label.toUpperCase() === g.label.toUpperCase()
+    : (p, g) => Math.abs(p.amount - g.amount) < 0.005;
+  const auto = guessesFor(kind).filter(g => !pins.some(p => p && same(p, g)));
+  let next = 0;
+  return pins.map(p => p ? { ...p, pinned: true } : (auto[next++] || null));
+}
+
+function renderGuesses() {
+  const kind = addTab, el = $id('guesses');
+  if (!el) return;
+  const gs = effectiveGuesses(kind);
+  el.innerHTML = gs.map((g, i) => {
+    if (editingGuess === i) {
+      return `
+        <div class="guess pinned">
+          <div class="guess-form">
+            <input class="inp sm" id="ge-label" value="${esc(g?.label || '')}" placeholder="${kind === 'expense' ? 'Name, e.g. Presto tap' : 'Label, e.g. Paycheque'}">
+            <span class="money"><input class="inp sm" id="ge-amt" type="number" min="0" step="0.01" inputmode="decimal" value="${g?.amount ?? ''}" placeholder="Amount"></span>
+            ${kind === 'expense' ? `
+            <select class="sel inp sm" id="ge-cat" aria-label="Category" onchange="$id('ge-sub').innerHTML = subOptions(this.value)">${catOptions('expense', catById(g?.cat)?.kind === 'expense' ? g.cat : 'misc')}</select>
+            <select class="sel inp sm" id="ge-sub" aria-label="Subcategory">${subOptions(catById(g?.cat)?.kind === 'expense' ? g.cat : 'misc', g?.sub)}</select>` : ''}
+            <div class="row">
+              <button class="btn btn-primary btn-sm" onclick="saveGuess(${i})">Save</button>
+              ${g?.pinned ? `<button class="btn btn-ghost btn-sm" onclick="resetGuess(${i})" title="Go back to the automatic guess">↺ Auto</button>` : ''}
+              <button class="btn-subtle" onclick="editingGuess = null; renderGuesses()">Cancel</button>
+            </div>
+          </div>
+        </div>`;
+    }
+    if (!g) return `
+      <div class="guess empty">
+        <button class="guess-main" onclick="editGuess(${i})">＋ Set a preset</button>
+      </div>`;
+    const cat = kind === 'expense' ? catById(g.cat) : null;
+    return `
+      <div class="guess${g.pinned ? ' pinned' : ''}">
+        <button class="guess-main" onclick="quickRecord(${i})" title="Record ${esc(g.label)} · ${esc(fmt(g.amount))} today${g.times ? ` (you've had it ${g.times}×)` : ''}">
+          <span class="g-tag">${g.pinned ? '📌 your preset' : 'guess · ' + esc(g.tag)}</span>
+          <span class="g-amt">${fmt(g.amount)}</span>
+          <span class="g-lbl" title="${esc(g.label)}">${esc(g.label)}</span>
+          ${cat ? `<span class="g-lbl g-cat" title="${esc(cat.name)}">${esc(cat.icon)} ${esc(cat.name)}</span>` : ''}
+        </button>
+        <button class="btn-x g-edit" onclick="editGuess(${i})" title="Adjust this preset" aria-label="Adjust preset">✎</button>
+      </div>`;
+  }).join('');
+  if (editingGuess != null) $id('ge-amt')?.focus();
+}
+
+function editGuess(i) { editingGuess = i; renderGuesses(); }
+
+function saveGuess(i) {
+  const amount = round2(parseFloat($id('ge-amt').value) || 0);
+  if (!(amount > 0)) { $id('ge-amt').focus(); return; }
+  const prev = effectiveGuesses(addTab)[i];
+  let cat = prev?.cat, sub = prev?.sub;
+  if (addTab === 'expense') { cat = $id('ge-cat').value; sub = validSub(catById(cat), $id('ge-sub').value); }
+  const label = $id('ge-label').value.trim()
+    || (addTab === 'expense' ? catById(cat).name : addTab === 'income' ? 'Income' : 'Savings');
+  store.settings.quick[addTab][i] = { label, amount, cat, sub };
+  editingGuess = null;
+  scheduleSave();
+  renderGuesses();
+}
+
+function resetGuess(i) {
+  store.settings.quick[addTab][i] = null;
+  editingGuess = null;
+  scheduleSave();
+  renderGuesses();
+}
+
+function quickRecord(i) {
+  const g = effectiveGuesses(addTab)[i];
+  if (!g) return;
+  const date = validDate($id('qa-date')?.value) || todayStr();
+  const tx = newManualTx(addTab, g.label, g.amount, date);
+  if (addTab === 'savings') {
+    const cat = catById(g.cat) && catById(g.cat).kind === 'savings' ? catById(g.cat) : catById('savings');
+    tx.cat = cat.id; tx.sub = validSub(cat, g.sub) || validSub(cat, 'transfers');
+  } else if (addTab === 'expense' && catById(g.cat)?.kind === 'expense') {
+    tx.cat = g.cat; tx.sub = validSub(catById(g.cat), g.sub);
+  }
+  addManualTx(tx);
+}
+
+function validDate(s) { return /^\d{4}-\d{2}-\d{2}$/.test(s || '') && parseLocalDate(s) ? s : null; }
+
+function newManualTx(kind, name, amount, date) {
+  return {
+    id: 'm_' + uid(), manual: true, date, name, raw: name, account: 'Manual',
+    expense: kind === 'expense' ? amount : 0,
+    income:  kind === 'income'  ? amount : 0,
+    savings: kind === 'savings' ? amount : 0,
+  };
+}
+
+function saveQuick() {
+  const err = $id('qa-err');
+  const fail = m => { err.textContent = m; err.hidden = false; };
+  err.hidden = true;
+  const amount = round2(parseFloat($id('qa-amt').value) || 0);
+  if (!(amount > 0)) { $id('qa-amt').focus(); return fail('Enter an amount above $0.'); }
+  const date = validDate($id('qa-date').value);
+  if (!date) return fail('Pick a date.');
+  const typed = $id('qa-name').value.trim();
+  let tx;
+  if (addTab === 'income') {
+    tx = newManualTx('income', typed || 'Income', amount, date);
+  } else {
+    const cat = catById($id('qa-cat').value);
+    tx = newManualTx(addTab, typed || cat.name, amount, date);
+    tx.cat = cat.id;
+    tx.sub = validSub(cat, $id('qa-sub').value);
+  }
+  addManualTx(tx);
+  $id('qa-amt').value = '';
+  $id('qa-name').value = '';
+  qaCatTouched = false;
+}
+
+function addManualTx(tx) {
+  const mo = tx.date.slice(0, 7);
+  (store.months[mo] ||= { transactions: [] }).transactions.push(tx);
+  store.months[mo].transactions.sort((a, b) => a.date.localeCompare(b.date));
+  monthCache = {};
+  scheduleSave();
+  renderAddRecent();
+  if (!document.getElementById('screen-add').hidden) renderGuesses();
+  const what = tx.income ? 'income' : tx.savings ? 'savings' : catById(tx.cat)?.name || 'expense';
+  showToast(`✓ ${fmt(tx.income || tx.savings || tx.expense)} added to ${what}`, 'Undo', () => deleteManualTx(tx.id, true));
+}
+
+function deleteManualTx(id, quiet = false) {
+  for (const mo of Object.keys(store.months)) {
+    const txs = store.months[mo].transactions;
+    const i = txs.findIndex(t => t.id === id);
+    if (i < 0) continue;
+    const [removed] = txs.splice(i, 1);
+    if (!txs.length) delete store.months[mo];
+    monthCache = {};
+    scheduleSave();
+    if (!$id('screen-add').hidden) { renderAddRecent(); renderGuesses(); }
+    if (!$id('screen-detail').hidden) {
+      if (store.months[currentMonth]) renderDetail(); else showMain();
+    }
+    if (!quiet) showToast(`Removed ${removed.name}`, 'Undo', () => addManualTx(removed));
+    return;
+  }
+}
+
+function txLine(t) {
+  const c = classify(t);
+  const cat = c.cat ? catById(c.cat) : null;
+  const label = t.manual ? t.name : cleanDesc(t.raw || t.name).label;
+  let amt, cls, meta;
+  if (c.kind === 'income')        { amt = '+' + fmt(t.income); cls = 'c-green'; meta = '💰 Income'; }
+  else if (c.kind === 'savings')  { amt = '−' + fmt(t.savings || t.expense); cls = 'c-violet'; meta = `${cat.icon} ${cat.name} · ${subName(cat, c.sub)}`; }
+  else if (c.kind === 'exclude')  { amt = '−' + fmt(t.expense); cls = 'c-muted'; meta = `${cat.icon} ${cat.name}`; }
+  else                            { amt = '−' + fmt(t.expense); cls = 'c-orange'; meta = `${cat.icon} ${cat.name} · ${subName(cat, c.sub)}`; }
+  return { label, amt, cls, meta: meta + (t.account ? ` · ${t.account}` : '') };
+}
+
+function renderAddRecent() {
+  const el = $id('add-recent');
+  const mine = allTx().filter(t => t.manual).slice(0, 15);
+  el.innerHTML = mine.length ? mine.map(t => {
+    const l = txLine(t);
+    return `
+      <div class="tx-row">
+        <span class="tx-date">${t.date.slice(5)}</span>
+        <span class="tx-main"><span class="tx-name" title="${esc(l.label)}">${esc(l.label)}</span><span class="tx-meta" title="${esc(l.meta)}">${esc(l.meta)}</span></span>
+        <span class="tx-amt ${l.cls}">${l.amt}</span>
+        <button class="btn-x" onclick="deleteManualTx('${esc(t.id)}')" title="Remove" aria-label="Remove">×</button>
+      </div>`;
+  }).join('') : `<div class="small muted">Nothing yet. Entries you add here show up in your month right away.</div>`;
+}
+
+// ── Month view: full transaction list ──
+let txReg = [];
+function toggleTxList() {
+  const ui = store.settings.ui ||= {};
+  ui.txOpen = !ui.txOpen;
+  scheduleSave();
+  renderTxList(computeMonth(currentMonth));
+}
+
+function renderTxList(s) {
+  const open = !!store.settings.ui?.txOpen;
+  const shown = s.items.filter(({ c }) => c.kind !== 'transfer');
+  const hidden = s.items.length - shown.length;
+  $id('tx-toggle-label').textContent = `📄 All transactions (${shown.length})`;
+  $id('tx-toggle').setAttribute('aria-expanded', open);
+  const body = $id('tx-body');
+  body.hidden = !open;
+  if (!open) return;
+  txReg = [];
+  body.innerHTML = `<div style="margin-top:.6rem">` +
+    [...shown].sort((a, b) => b.t.date.localeCompare(a.t.date)).map(({ t }) => {
+      const l = txLine(t);
+      const action = t.manual
+        ? `<button class="btn-x" onclick="deleteManualTx('${esc(t.id)}')" title="Remove" aria-label="Remove">×</button>`
+        : (t.expense > 0 ? `<button class="btn-icon" onclick="categorizeTx(${txReg.push(t) - 1})" title="Change category">🏷️</button>` : '<span style="width:2rem"></span>');
+      return `
+        <div class="tx-row">
+          <span class="tx-date">${t.date.slice(5)}</span>
+          <span class="tx-main"><span class="tx-name" title="${esc(t.raw || t.name)}">${esc(l.label)}${t.manual ? '<span class="tag-manual">manual</span>' : ''}</span><span class="tx-meta">${esc(l.meta)}</span></span>
+          <span class="tx-amt ${l.cls}">${l.amt}</span>
+          ${action}
+        </div>`;
+    }).join('') +
+    (hidden ? `<div class="small muted" style="margin-top:.5rem">${hidden} transfer${hidden !== 1 ? 's' : ''} between your own accounts not shown.</div>` : '') +
+    `</div>`;
+}
+
+function categorizeTx(i) {
+  const t = txReg[i];
+  if (!t) return;
+  const c = classify(t), m = cleanDesc(t.raw || t.name);
+  openRuleModal({ pattern: m.pattern, cat: c.cat === 'misc' ? '' : c.cat, sub: c.sub, example: t.raw || t.name });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2699,11 +3340,15 @@ async function handleProcess() {
 
     const byMonth = transactions.reduce((acc, t) => { (acc[t.date.slice(0, 7)] ||= []).push(t); return acc; }, {});
     let added = 0;
+    const fresh = [];
     for (const [mo, txs] of Object.entries(byMonth)) {
       const res = mergeTransactions(store.months[mo]?.transactions || [], txs);
       store.months[mo] = { transactions: res.merged };
       added += res.added;
+      fresh.push(...res.fresh);
     }
+    const replaced = reconcileManual(fresh);
+    for (const mo of Object.keys(store.months)) if (!store.months[mo].transactions.length) delete store.months[mo];
     monthCache = {};
     await persist();
 
@@ -2715,7 +3360,8 @@ async function handleProcess() {
     const n = updatedMonths.length;
     showAlert(
       `Added ${added} transaction${added !== 1 ? 's' : ''} across ${n} month${n !== 1 ? 's' : ''}: ${updatedMonths.map(monthLabel).join(', ')}.` +
-      (skipped > 0 ? ` Skipped ${skipped} already on file.` : ''), 'success');
+      (skipped > 0 ? ` Skipped ${skipped} already on file.` : '') +
+      (replaced > 0 ? ` Matched ${replaced} manual entr${replaced === 1 ? 'y' : 'ies'} to the bank's version.` : ''), 'success');
     clearFiles();
 
   } catch (err) {
