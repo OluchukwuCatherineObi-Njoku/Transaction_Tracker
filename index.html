@@ -384,6 +384,58 @@
     .history-arrow { color: #f9a8d4; font-size: .85rem; }
     .history-row .meter { grid-column: 1 / -1; }
 
+    /* ── Tour invitations ── */
+    .tour-cta {
+      display: flex; align-items: center; gap: .75rem;
+      background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 55%, #f5f3ff 100%);
+      border: 1.5px solid #f9a8d4; border-radius: 16px; padding: .8rem .9rem;
+      box-shadow: 0 2px 10px rgba(219,39,119,.12);
+    }
+    .tour-cta-ico { font-size: 1.7rem; flex: none; animation: wiggle 2.6s ease-in-out infinite; }
+    @keyframes wiggle { 0%, 80%, 100% { transform: rotate(0); } 85% { transform: rotate(-12deg) scale(1.08); } 92% { transform: rotate(10deg) scale(1.08); } }
+    .tour-cta-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .tour-cta-txt b { font-size: .92rem; color: var(--prim2); }
+    .tour-cta-txt span { font-size: .76rem; color: var(--text2); }
+    .tour-cta .btn { flex: none; }
+    .tour-btn { border-style: dashed; }
+    @media (max-width: 480px) {
+      .tour-cta { flex-wrap: wrap; row-gap: .6rem; }
+      .tour-cta-txt { flex: 1 1 0; }
+      .tour-cta .btn-x { order: 2; align-self: flex-start; }
+      .tour-cta .btn-primary { order: 3; flex: 1 0 100%; min-height: 40px; }
+    }
+    @media (prefers-reduced-motion: reduce) { .tour-cta-ico { animation: none; } }
+
+    /* ── Guided tour ── */
+    body.touring #app { pointer-events: none; }          /* the tour drives; your taps can't change anything */
+    .tour-ring {
+      position: fixed; z-index: 400; pointer-events: none; border-radius: 16px;
+      box-shadow: 0 0 0 4px #f472b6, 0 0 0 9999px rgba(31,41,55,.45);
+    }
+    .tour-ring.none { box-shadow: 0 0 0 9999px rgba(31,41,55,.45); }
+    .tour-badge {
+      position: fixed; z-index: 401; top: 10px; left: 50%; transform: translateX(-50%);
+      background: #1f2937; color: #fff; font-size: .72rem; font-weight: 700; padding: .3rem .75rem; border-radius: 999px;
+      box-shadow: 0 4px 14px rgba(0,0,0,.2); white-space: nowrap;
+    }
+    .tour-card {
+      position: fixed; z-index: 401; left: 0; right: 0; margin: 0 auto; bottom: 18px;
+      width: min(560px, calc(100% - 24px)); background: #fff; border: 1px solid var(--border);
+      border-radius: 18px; padding: .9rem 1.1rem .8rem; box-shadow: 0 14px 44px rgba(0,0,0,.28);
+      animation: up .25s cubic-bezier(.2,.8,.2,1);
+    }
+    .tour-card.top { top: 54px; bottom: auto; }
+    .tour-step  { font-size: .66rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--primary); }
+    .tour-title { font-size: 1.08rem; font-weight: 800; color: var(--text); margin: .1rem 0 .3rem; letter-spacing: -.01em; }
+    .tour-text  { font-size: .88rem; color: var(--text2); line-height: 1.5; }
+    .tour-text b { color: var(--text); }
+    .tour-progress { height: 3px; background: #fce7f3; border-radius: 3px; margin: .75rem 0 .6rem; overflow: hidden; }
+    .tour-progress i { display: block; height: 100%; width: 0; background: var(--primary); border-radius: 3px; }
+    .tour-ctrl { display: flex; gap: .4rem; align-items: center; }
+    .tour-ctrl .btn { pointer-events: auto; }
+    .bubble.pulse, .guess.pulse { animation: tpulse .5s ease; }
+    @keyframes tpulse { 40% { transform: scale(.9); background: #fce7f3; box-shadow: 0 0 0 6px rgba(244,114,182,.35); } }
+
     /* ── History grouped by year ── */
     .hist-head { display: flex; align-items: center; gap: .75rem; }
     .hist-head .trend-toggle { flex: 1; }
@@ -634,6 +686,7 @@
       <input type="password" id="unlock-pwd" class="lock-input" placeholder="Password" autocomplete="current-password" enterkeyhint="go">
       <div id="unlock-err" class="lock-err" hidden></div>
       <button class="btn btn-primary btn-full mt-1" id="unlock-btn" onclick="handleUnlock()">Unlock</button>
+      <button class="btn btn-outline btn-full mt-1 tour-btn" onclick="startTour()">🎬 Take a 2-minute tour</button>
       <p class="lock-note"><a onclick="showLockView('change')">Change password</a> · <a onclick="showLockView('forgot')">Forgot password?</a><br>
         Encrypted with your password + Secret Key (AES-256-GCM).</p>
     </div>
@@ -649,6 +702,8 @@
         <button class="choice" onclick="showLockView('restore')"><b>📄 Restore a backup file</b><span>A backup you exported from Settings</span></button>
         <button class="choice" onclick="showLockView('create')"><b>🌱 Start fresh</b><span>Empty history, default categories</span></button>
       </div>
+      <button class="btn btn-outline btn-full mt-1 tour-btn" onclick="startTour()">🎬 Take a 2-minute tour first</button>
+      <p class="lock-note">The tour uses sample data — nothing is saved.</p>
     </div>
 
     <!-- Start fresh -->
@@ -809,6 +864,14 @@
         <button class="quick-btn" onclick="showAdd('savings')">🐷<span>Savings</span></button>
       </div>
 
+      <!-- Guided tour invitation (dismissible, per device) -->
+      <div class="tour-cta" id="tour-cta" hidden>
+        <span class="tour-cta-ico" aria-hidden="true">🎬</span>
+        <span class="tour-cta-txt"><b>New here? See how it works</b><span>A 2-minute guided tour with sample data — nothing is saved</span></span>
+        <button class="btn btn-primary btn-sm" onclick="startTour()">▶ Take the tour</button>
+        <button class="btn-x" onclick="hideTourCta()" title="Hide this — the tour stays in ⚙️ and at the bottom of the page" aria-label="Hide">×</button>
+      </div>
+
       <!-- Latest month — one slim line -->
       <div id="latest-section" hidden></div>
 
@@ -844,6 +907,7 @@
       <div class="footer-links">
         <button class="btn-subtle" onclick="showBudget()">🎯 Budget &amp; categories</button>
         <button class="btn-subtle" onclick="showSecurity()">🔐 Security &amp; sync</button>
+        <button class="btn btn-outline btn-sm" onclick="startTour()">🎬 Take a tour</button>
       </div>
     </div>
 
@@ -988,6 +1052,27 @@
   <div id="tt" class="tt" role="tooltip" hidden></div>
   <div id="toast" class="toast" role="status" hidden><span id="toast-msg"></span><button id="toast-act" hidden></button></div>
 </div><!-- /#app -->
+
+<!-- ══════════════════ GUIDED TOUR (sample data, nothing saved) ══════════════════ -->
+<div id="tour" hidden>
+  <div class="tour-ring" id="tour-ring"></div>
+  <div class="tour-badge">🎬 Tour · sample data — nothing is saved</div>
+  <div class="tour-card" id="tour-card" role="dialog" aria-live="polite" aria-label="Guided tour">
+    <div class="row-between">
+      <span class="tour-step" id="tour-step"></span>
+      <button class="btn-x" onclick="endTour()" aria-label="Exit tour" title="Exit tour (Esc)">✕</button>
+    </div>
+    <div class="tour-title" id="tour-title"></div>
+    <div class="tour-text" id="tour-text"></div>
+    <div class="tour-progress"><i id="tour-bar"></i></div>
+    <div class="tour-ctrl">
+      <button class="btn btn-ghost btn-sm" onclick="tourPrev()" title="Back (←)">‹ Back</button>
+      <button class="btn btn-ghost btn-sm" id="tour-play" onclick="tourToggle()" title="Pause / play (Space)">⏸ Pause</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-primary btn-sm" id="tour-next" onclick="tourNext()" title="Next (→)">Next ›</button>
+    </div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -1268,6 +1353,7 @@ function stampMeta() {
 }
 
 async function persist() {
+  if (demoActive) return null;                 // the guided tour never saves
   if (!activeKey) throw new Error('Not unlocked');
   stampMeta();
   const rec = await sealStore();
@@ -2277,6 +2363,7 @@ function enterApp() {
 }
 
 async function lock() {
+  if (tour) endTour();
   // Save anything still pending, and push it to Drive if we safely can
   if (activeKey) {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; try { await persist(); } catch { /* keep going */ } }
@@ -2332,7 +2419,7 @@ for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart'])
 
 function checkAutoLock() {
   const min = store.settings?.ui?.autoLockMin;
-  if (!activeKey || !min || pendingSetup) return;
+  if (!activeKey || !min || pendingSetup || demoActive) return;
   if (Date.now() - lastActivity > min * 60000) lock();
 }
 setInterval(checkAutoLock, 15000);
@@ -2480,7 +2567,7 @@ let syncStatus = 'idle', syncMsg = '', syncDirty = false, syncTimer = null, sync
 
 function queueSync() {
   clearTimeout(syncTimer);
-  if (driveState.connected && activeKey) syncTimer = setTimeout(() => syncNow(), 2500);
+  if (driveState.connected && activeKey && !demoActive) syncTimer = setTimeout(() => syncNow(), 2500);
 }
 
 function setSync(status, msg = '') {
@@ -2512,7 +2599,7 @@ function onSyncChip() {
 }
 
 async function syncNow({ interactive = false } = {}) {
-  if (!driveState.connected || !activeKey) return;
+  if (!driveState.connected || !activeKey || demoActive) return;
   let tokenP = null;
   if (!tokenValid()) {
     if (!interactive) return setSync('auth');
@@ -2656,12 +2743,13 @@ function renderConflictHelp() {
 
 function renderSecurity() {
   const el = document.getElementById('security-content');
-  const sk = deviceSK();
-  const ds = driveState;
+  // The tour shows a pretend Secret Key and sync status — never your real ones
+  const sk = demoActive ? DEMO_SK : deviceSK();
+  const ds = demoActive ? { connected: true, lastSync: Date.now() - 120000 } : driveState;
   let drive;
-  if (!syncSupported()) {
+  if (!syncSupported() && !demoActive) {
     drive = `<p class="small muted">Sync works on the hosted version of the app (an <b>https://</b> address). You're running it from a file on this computer — use <b>Export encrypted backup</b> below to move your data there.</p>`;
-  } else if (!clientId()) {
+  } else if (!clientId() && !demoActive) {
     drive = `
       <p class="small muted">Paste the OAuth Client ID from Google Cloud. It ends in <b>.apps.googleusercontent.com</b> and isn't a secret.</p>
       <input class="inp sm mt-1" id="gcid-in" placeholder="1234567890-abc….apps.googleusercontent.com" autocomplete="off" spellcheck="false">
@@ -2672,7 +2760,7 @@ function renderSecurity() {
       <div class="btn-row"><button class="btn btn-primary btn-sm" onclick="connectDrive()">☁️ Connect Google Drive</button></div>`;
   } else {
     drive = `
-      <div class="kv"><span>Status</span><span id="sec-sync-status">${esc(syncLabel())}</span></div>
+      <div class="kv"><span>Status</span><span id="sec-sync-status">${esc(demoActive ? 'Up to date ✓' : syncLabel())}</span></div>
       <div class="kv"><span>Last synced</span><span>${ds.lastSync ? new Date(ds.lastSync).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}</span></div>
       <div id="sec-conflict" class="mt-1"></div>
       <div class="btn-row">
@@ -2683,6 +2771,11 @@ function renderSecurity() {
   }
   const lockMin = store.settings.ui?.autoLockMin ?? 10;
   el.innerHTML = `
+    ${demoActive ? '' : `<div class="tour-cta">
+      <span class="tour-cta-ico" aria-hidden="true">🎬</span>
+      <span class="tour-cta-txt"><b>Guided tour</b><span>Replay the 2-minute walkthrough any time</span></span>
+      <button class="btn btn-primary btn-sm" onclick="startTour()">▶ Play</button>
+    </div>`}
     <div class="card"><div class="card-label"><span>☁️ Google Drive sync</span></div>${drive}</div>
 
     <div class="card">
@@ -2811,6 +2904,7 @@ function backFromBudget() {
 
 function renderMain(highlightMonths = []) {
   const keys = Object.keys(store.months).sort().reverse();
+  renderTourCta();
   renderSetupNudge(keys);
   renderLatest(keys);
   renderTrend();
@@ -2821,6 +2915,15 @@ function renderMain(highlightMonths = []) {
     setUiPref('openYears', [...new Set([...uiPref('openYears', []), ...highlightMonths.map(m => m.slice(0, 4))])]);
   }
   renderHistory(keys, highlightMonths);
+}
+
+function renderTourCta() {
+  document.getElementById('tour-cta').hidden = demoActive || uiPref('tourCtaHidden', false);
+}
+function hideTourCta() {
+  setUiPref('tourCtaHidden', true);
+  renderTourCta();
+  showToast('Hidden — the tour is still in ⚙️ and at the bottom of the home screen');
 }
 
 function renderSetupNudge(keys) {
@@ -4211,6 +4314,341 @@ document.getElementById('lc-conf').addEventListener('keydown', e => { if (e.key 
 document.getElementById('m-pattern').addEventListener('keydown',  e => { if (e.key === 'Enter') saveRuleFromModal(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRuleModal(); });
 window.addEventListener('scroll', hideTip, { passive: true });
+
+// ═══════════════════════════════════════════════════════════════
+// Guided tour — plays through the app on made-up sample data. While it runs, saving and
+// syncing are switched off and taps on the app are ignored; your real data is put back on exit.
+// ═══════════════════════════════════════════════════════════════
+
+let demoActive = false;
+let tour = null;
+const DEMO_SK = 'D3M0D3M0D3M0D3M0D3M0D3M0';
+
+// Six months of statements that look like a real CIBC chequing + savings + Visa export
+function buildDemoStore() {
+  let seed = 20261016;
+  const rnd = () => {                                   // seeded, so the tour looks the same every time
+    seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+  const amt    = (lo, hi) => (lo + rnd() * (hi - lo)).toFixed(2);
+  const digits = n => Array.from({ length: n }, () => Math.floor(rnd() * 10)).join('');
+  const code   = n => Array.from({ length: n }, () => B32[10 + Math.floor(rnd() * 22)]).join('');
+  const pick   = a => a[Math.floor(rnd() * a.length)];
+  const cheq = [], visa = [], sav = [];
+  const C  = (d, desc, e, i = '') => cheq.push(`${d},${desc},${e},${i}`);
+  const S  = (d, desc, e, i = '') => sav.push(`${d},${desc},${e},${i}`);
+  const V  = (d, desc, e) => visa.push(`${d},"${desc}",${e},,4505********8750`);
+  const Vi = (d, desc, i) => visa.push(`${d},"${desc}",,${i},4505********8750`);
+  const POS = () => `Point of Sale - Interac RETAIL PURCHASE ${digits(12)}`;
+  const today = new Date();
+
+  for (let back = 5; back >= 0; back--) {
+    const y = new Date(today.getFullYear(), today.getMonth() - back, 1).getFullYear();
+    const m = new Date(today.getFullYear(), today.getMonth() - back, 1).getMonth();
+    const cur  = back === 0;
+    const last = cur ? today.getDate() : new Date(y, m + 1, 0).getDate();
+    const D = d => fmtDate(new Date(y, m, d));
+    for (let d = 1; d <= last; d++) {
+      const wd = new Date(y, m, d).getDay();
+      if (d === 1 || d === 15) C(D(d), 'Payroll Deposit ACME CORP', '', '2400.00');
+      if (d === 2)  C(D(d), `Internet Banking E-TRANSFER 1061${digits(8)} MeeeW`, back % 3 === 1 ? '400.00' : '600.00');
+      if (d === 16) C(D(d), 'Electronic Funds Transfer PREAUTHORIZED DEBIT Wealthsimple Investments', '200.00');
+      if (d === 9)  V(D(d), 'WWW.121MMA.COM TORONTO, ON', '158.19');
+      if (d === 12) V(D(d), 'FIDO MOBILE TORONTO, ON', '55.37');
+      if (d === 20) V(D(d), 'NETFLIX.COM TORONTO, ON', '16.99');
+      if (d === 22) { C(D(d), `Internet Banking INTERNET TRANSFER 000000${digits(6)} FROM ACCOUNT 00631/****732`, '', '150.00');
+                      S(D(d), `Internet Banking INTERNET TRANSFER 000000${digits(6)} TO ACCOUNT 00631/****694`, '150.00'); }
+      if (d === 25) Vi(D(d), 'PAYMENT THANK YOU/PAIEMEN T MERCI', '600.00');
+      if (d === 28) S(D(d), 'Branch Transaction SMART INTEREST', '', '0.07');
+      if (wd >= 1 && wd <= 5 && rnd() < .6) {
+        C(D(d), `${POS()} PRES/${code(10)}`, '3.30');
+        if (rnd() < .7) C(D(d), `${POS()} PRES/${code(10)}`, '3.30');
+      }
+      if (rnd() < .13) V(D(d), 'UBER CANADA/UBERTRIP TORONTO, ON', amt(9, 38));
+      if (rnd() < (cur ? .22 : .07)) V(D(d), 'UBER CANADA/UBEREATS TORONTO, ON', amt(38, 66));
+      if (rnd() < .06) V(D(d), `LYFT *STANDARD ${D(d).slice(5)} VANCOUVER, BC`, amt(7, 26));
+      if (wd === 6)    V(D(d), 'METRO 37 TORONTO, ON', amt(22, 62));
+      if (rnd() < .07) C(D(d), `${POS()} BULK BARN #556`, amt(5, 18));
+      if (rnd() < .08) C(D(d), `${POS()} SHOPPERS DRUG M`, amt(4, 30));
+      if (rnd() < .09) C(D(d), `Point of Sale - Interac RETAIL PURCHASE ${digits(1)}${code(7)}${digits(4)} TST-Chefs Hall`, amt(7, 16));   // CIBC codes look like 3N16WJUF0000
+      if (rnd() < .10) C(D(d), `${POS()} TIM HORTONS #2${digits(3)}`, amt(2, 9));
+      if (rnd() < .04) V(D(d), 'MUJI ATRIUM TORONTO, ON', amt(15, 60));
+      if (rnd() < .03) V(D(d), 'AMAZON.CA AMAZON.CA, ON', amt(20, 75));
+      if (rnd() < .05) C(D(d), `Internet Banking E-TRANSFER 1061${digits(8)} ${pick(['Ziggy', 'Onyi Nnaji', 'Ada'])}`, amt(40, 110));
+    }
+    if (cur) V(D(Math.max(1, Math.min(last, 11))), 'SQ *BLOSSOM FLOWERS TORONTO, ON', '32.00');   // one uncategorized
+  }
+
+  const txs = [...readTransactions(cheq.join('\n'), 'Chequing'),
+               ...readTransactions(visa.join('\n'), 'Visa'),
+               ...readTransactions(sav.join('\n'), 'Savings')];
+  const months = {};
+  for (const t of txs) (months[t.date.slice(0, 7)] ||= { transactions: [] }).transactions.push(t);
+  const tm = fmtMonth(today);
+  (months[tm] ||= { transactions: [] }).transactions.push({ id: 'm_demo1', manual: true, createdAt: Date.now(), date: fmtDate(today),
+    name: 'Coffee with Ada', raw: 'Coffee with Ada', account: 'Manual', expense: 6.5, income: 0, savings: 0, cat: 'food', sub: 'restaurants' });
+  for (const mo of Object.keys(months)) months[mo].transactions.sort((a, b) => a.date.localeCompare(b.date));
+
+  const st = defaultSettings();
+  const b = (cid, own, subs = {}) => {
+    const c = st.categories.find(x => x.id === cid);
+    c.budget = own;
+    for (const [sid, v] of Object.entries(subs)) c.subs.find(s => s.id === sid).budget = v;
+  };
+  b('transport', 0, { rideshare: 120, transit: 140 });
+  b('food', 380, { delivery: 120, groceries: 220, restaurants: 60 });   // subs add to 400 → shows "Over by $20"
+  b('health', 0, { gym: 160, pharmacy: 40, medical: 30 });
+  b('shopping', 80);
+  b('bills', 0, { phone: 60 });
+  b('people', 150);
+  b('fun', 0, { streaming: 20 });
+  b('misc', 40);
+  b('savings', 0, { transfers: 600, invest: 200 });
+  return normalizeStore({ months, settings: st, meta: {} });
+}
+
+const tourSleep = ms => new Promise(r => setTimeout(r, ms));
+const tourAlive = run => tour && tour.runId === run;
+const byId = id => document.getElementById(id);
+const cardOf = id => byId(id)?.closest('.card');
+// Each step sets up its own screen, so Back/Next work from anywhere
+const tourMonth  = () => { const mo = fmtMonth(new Date()); if (currentMonth !== mo || byId('screen-detail').hidden) openMonth(mo); };
+const tourAdd    = tab => { showAdd(tab); if (addTab !== tab) setAddTab(tab); };
+const tourBudget = open => { if (byId('screen-budget').hidden) showBudget(); openCatEdits = new Set(open); renderBudgetScreen(); };
+
+const TOUR = [
+  { title: 'Welcome to Transaction Tracker 👋',
+    text: 'A private budget app that lives on <b>your</b> devices. This tour plays with made-up sample data — your real data isn\'t touched, and nothing is saved.',
+    before: () => showMain() },
+  { title: 'Load your bank statements',
+    text: 'Drop in your CIBC <b>chequing, savings and Visa</b> CSV exports. Every purchase is sorted into a category automatically — Presto taps, Uber trips, Uber Eats, groceries and more. Re-uploading is safe: duplicates are skipped.',
+    before: () => { showMain(); if (uploadCollapsed) toggleUpload(); },
+    target: () => cardOf('drop-zone') },
+  { title: 'Or add things by hand',
+    text: 'Bought something just now? Log an <b>expense</b>, a <b>paycheque</b> or a <b>savings transfer</b> in seconds — it counts toward your budget right away, and is matched to the bank\'s version when you next upload.',
+    before: () => { showMain(); if (!uploadCollapsed) toggleUpload(); },
+    target: '.quick-row' },
+  { title: 'This month at a glance',
+    text: 'How much you\'ve spent against your budget. The little tick marks where an <b>even pace</b> would put you today — if the bar is past it, you\'re spending faster than planned.',
+    before: () => showMain(),
+    target: '#latest-section' },
+  { title: 'Your history, by year',
+    text: 'Every month, grouped by year, with income, spending and balance — and whether you <b>stayed on budget</b>. Tap a year to open its months; tap a month to dig in.',
+    before: () => { showMain(); setUiPref('historyOpen', true); setUiPref('openYears', [fmtMonth(new Date()).slice(0, 4)]); renderMain(); },
+    target: () => cardOf('hist-toggle') },
+  { title: 'Trends',
+    text: 'Month-by-month spending against your budget line. Red bars with a <b>▲</b> went over budget; the pale bar is this month so far.',
+    before: () => { showMain(); setUiPref('trendsOpen', true); renderTrend(); },
+    target: '#trend-card' },
+  { title: 'Open a month',
+    text: 'Each month opens with a headline — <b>on track</b>, <b>trending over</b>, <b>under budget</b> — how much is left per day, and quick insights like your top category.',
+    before: () => tourMonth(),
+    target: '#detail-hero' },
+  { title: 'Savings & investing goal',
+    text: 'Money moved to savings or investments (like the MeeeW e-transfer or Wealthsimple) is tracked separately, against your own goal.',
+    before: () => tourMonth(),
+    target: '#detail-savings' },
+  { title: 'Where your money went',
+    text: 'Your spending by category, at a glance.',
+    before: () => tourMonth(),
+    target: () => cardOf('detail-donut') },
+  { title: 'Budget by category',
+    text: 'Each category against its budget — <b>red hatching</b> means over. Tap one to see its subcategories and the merchants behind them: Food is fine overall, but Uber Eats has already blown past the <b>Delivery</b> budget.',
+    before: () => { tourMonth(); expandedCats = new Set(['food']); renderCategoryBreakdown(currentMonth, computeMonth(currentMonth)); },
+    target: '#cat-food' },
+  { title: 'Teach it once',
+    text: 'Something uncategorized? Tap <b>🏷️</b>, type part of its name and pick a category. Every past <b>and future</b> transaction that matches follows — on every account.',
+    before: () => tourMonth() || openRuleModal({ pattern: 'BLOSSOM', cat: 'shopping', sub: 'home', example: 'SQ *BLOSSOM FLOWERS TORONTO, ON' }),
+    target: '.modal' },
+  { title: 'Spending pace',
+    text: 'Your running total through the month against an even budget pace, with a dashed projection to month-end. Hover or tap the chart for any day.',
+    before: () => { closeRuleModal(); tourMonth(); },
+    target: () => cardOf('detail-pace') },
+  { title: 'Every transaction',
+    text: 'The full list, cleaned up — category, subcategory and account on every row. Transfers between your own accounts are hidden. Download the month as a CSV just below.',
+    before: () => { tourMonth(); setUiPref('txOpen', true); renderTxList(computeMonth(currentMonth)); },
+    target: () => cardOf('tx-body') },
+  { title: 'Quick record',
+    text: 'Your most frequent purchases become one-tap buttons — tap one and it\'s recorded for today, with <b>Undo</b>. Pin your own with ✎.',
+    before: () => tourAdd('expense'),
+    target: () => cardOf('guesses'),
+    during: async run => {
+      await tourSleep(2600);
+      if (!tourAlive(run)) return;
+      const g = document.querySelector('#guesses .guess');
+      g?.classList.add('pulse');
+      quickRecord(0);
+      setTimeout(() => g?.classList.remove('pulse'), 500);
+    } },
+  { title: 'No typing needed',
+    text: 'Build any amount with the bubbles — <b>+20, +10, +1</b>… Switch to <b>−</b> to take away. You can always type it instead.',
+    before: () => { tourAdd('expense'); byId('qa-amt').value = ''; setPM('+'); },
+    target: () => byId('qa-bubbles').parentElement,
+    ms: 9000,
+    during: async run => {
+      await tourSleep(900);
+      for (const [mode, n] of [['+', 20], ['+', 10], ['+', 1], ['+', 1], ['-', 1]]) {
+        if (!tourAlive(run)) return;
+        if (qaMode !== mode) { setPM(mode); await tourSleep(600); }
+        const bub = [...document.querySelectorAll('#qa-bubbles .bubble')].find(x => x.textContent.replace(/[^\d]/g, '') === String(n));
+        bub?.classList.add('pulse');
+        bump(n);
+        setTimeout(() => bub?.classList.remove('pulse'), 500);
+        await tourSleep(850);
+      }
+    } },
+  { title: 'Income & savings guesses',
+    text: 'Paycheques and savings transfers are guessed from your history, so recording one is a single tap.',
+    before: () => tourAdd('income'),
+    target: () => cardOf('guesses') },
+  { title: 'Set your budget',
+    text: 'Set a budget per category and subcategory. <b>Grey amounts are suggestions</b> — the sum of the level below — and ✨ can suggest everything from your history.',
+    before: () => tourBudget(['food']),
+    target: () => cardOf('goal-total-in') },
+  { title: 'It checks your maths',
+    text: 'Type your own target and it tells you whether the subcategories fit — here they add up to <b>$20 more</b> than the Food budget.',
+    before: () => tourBudget(['food']),
+    target: () => byId('cb-food').closest('details') },
+  { title: 'Rules that sort for you',
+    text: 'About 200 built-in rules recognise Canadian merchants, and any rule you add wins over them.',
+    before: () => tourBudget([]),
+    target: () => cardOf('rules-list') },
+  { title: 'Private and synced',
+    text: 'Everything is encrypted with your <b>password + Secret Key</b> before it\'s saved. Google Drive sync only ever sees the encrypted file — plus auto-lock and encrypted backups.',
+    before: () => showSecurity(),
+    target: '#security-content' },
+  { title: 'That\'s the tour! 🎉',
+    text: 'Exit to get back to your own data — exactly as you left it. You can replay it any time from <b>🎬 Take a tour</b> — on the home screen, in ⚙️, or on the lock screen.',
+    before: () => showMain() },
+];
+
+function startTour() {
+  if (tour) return;
+  const fromLock = document.getElementById('screen-lock').style.display !== 'none';
+  tour = { i: 0, runId: 0, playing: true, fromLock, realStore: store, ui: localStorage.getItem(UI_KEY), timer: null, el: null };
+  demoActive = true;
+  clearTimeout(saveTimer); saveTimer = null;
+  store = buildDemoStore();
+  refreshRules();
+  monthCache = {}; currentMonth = null; expandedCats = new Set(); openCatEdits = new Set();
+  localStorage.removeItem(UI_KEY);                 // start from the default view; restored on exit
+  document.getElementById('screen-lock').style.display = 'none';
+  document.getElementById('app').style.display = '';
+  document.body.classList.add('touring');
+  byId('tour').hidden = false;
+  byId('tour-play').textContent = '⏸ Pause';
+  tourGo(0);
+  requestAnimationFrame(tourFrame);
+}
+
+function endTour() {
+  if (!tour) return;
+  const t = tour;
+  tour = null;
+  clearTimeout(t.timer);
+  closeRuleModal(); hideTip();
+  byId('toast').hidden = true;
+  byId('tour').hidden = true;
+  document.body.classList.remove('touring');
+  demoActive = false;
+  store = t.realStore;
+  refreshRules();
+  monthCache = {}; currentMonth = null; expandedCats = new Set(); openCatEdits = new Set();
+  if (t.ui == null) localStorage.removeItem(UI_KEY); else localStorage.setItem(UI_KEY, t.ui);
+  if (t.fromLock) {
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('screen-lock').style.display = '';
+    renderLockScreen();
+  } else {
+    showMain();
+  }
+}
+
+async function tourGo(i) {
+  if (!tour) return;
+  i = Math.max(0, Math.min(TOUR.length - 1, i));
+  const run = ++tour.runId;
+  tour.i = i;
+  clearTimeout(tour.timer);
+  const st = TOUR[i];
+  if (!/modal/.test(String(st.target))) closeRuleModal();
+  hideTip();
+  try { await st.before?.(); } catch (e) { console.warn('tour step', i, e); }
+  if (!tourAlive(run)) return;
+  byId('tour-step').textContent = `Step ${i + 1} of ${TOUR.length}`;
+  byId('tour-title').textContent = st.title;
+  byId('tour-text').innerHTML = st.text;                    // static strings written above
+  byId('tour-next').textContent = i === TOUR.length - 1 ? 'Finish ✓' : 'Next ›';
+  const el = typeof st.target === 'function' ? st.target() : st.target ? document.querySelector(st.target) : null;
+  tour.el = el || null;
+  if (el && !el.closest('.modal-bg')) {
+    const top = el.getBoundingClientRect().top + window.scrollY - 64;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'instant' });
+  } else if (!el) {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+  tourPlace();
+  st.during?.(run);
+  tour.ms = st.ms || Math.min(12000, 4200 + 38 * st.text.replace(/<[^>]+>/g, '').length);
+  tourBar();
+}
+
+function tourBar() {
+  const bar = byId('tour-bar');
+  bar.style.transition = 'none';
+  bar.style.width = '0';
+  void bar.offsetWidth;
+  if (!tour.playing) return;
+  bar.style.transition = `width ${tour.ms}ms linear`;
+  bar.style.width = '100%';
+  tour.timer = setTimeout(() => tourNext(), tour.ms);
+}
+
+function tourNext() { if (!tour) return; tour.i >= TOUR.length - 1 ? endTour() : tourGo(tour.i + 1); }
+function tourPrev() { if (tour) tourGo(tour.i - 1); }
+function tourToggle() {
+  if (!tour) return;
+  tour.playing = !tour.playing;
+  byId('tour-play').textContent = tour.playing ? '⏸ Pause' : '▶ Play';
+  clearTimeout(tour.timer);
+  tourBar();
+}
+
+// Keep the spotlight on its target while the page scrolls or animates
+function tourFrame() {
+  if (!tour) return;
+  tourPlace();
+  requestAnimationFrame(tourFrame);
+}
+
+function tourPlace() {
+  if (!tour) return;
+  const ring = byId('tour-ring'), card = byId('tour-card');
+  const el = tour.el;
+  if (el && el.isConnected && el.offsetParent !== null) {
+    const r = el.getBoundingClientRect(), pad = 6;
+    ring.classList.remove('none');
+    Object.assign(ring.style, { top: r.top - pad + 'px', left: r.left - pad + 'px', width: r.width + pad * 2 + 'px', height: r.height + pad * 2 + 'px' });
+    // Keep the caption from covering the spotlight
+    const cardH = card.offsetHeight + 30;
+    card.classList.toggle('top', r.top > window.innerHeight - cardH - 40 && r.top > cardH + 60);
+  } else {
+    ring.classList.add('none');
+    Object.assign(ring.style, { top: '50%', left: '50%', width: '0px', height: '0px' });
+    card.classList.remove('top');
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (!tour) return;
+  if (e.key === 'ArrowRight') { e.preventDefault(); tourNext(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); tourPrev(); }
+  else if (e.key === ' ') { e.preventDefault(); tourToggle(); }
+  else if (e.key === 'Escape') { e.preventDefault(); endTour(); }
+});
 
 // ═══════════════════════════════════════════════════════════════
 // Init
