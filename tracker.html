@@ -7,7 +7,10 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <title>Transaction Tracker 2</title>
+  <!-- Only Google sign-in and the Drive API may be contacted; nothing else can load or receive data -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/client; connect-src 'self' https://www.googleapis.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Transaction Tracker</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     [hidden] { display: none !important; }
@@ -76,6 +79,38 @@
     }
     .lock-note  { font-size: .7rem; color: var(--muted); margin-top: .875rem; }
     .lock-note a { color: var(--primary); text-decoration: underline; cursor: pointer; }
+    #screen-lock { overflow-y: auto; }
+    .lock-card { max-width: 380px; margin: auto; }
+    .choice-col { display: flex; flex-direction: column; gap: .55rem; text-align: left; }
+    .choice {
+      display: flex; flex-direction: column; gap: .15rem; width: 100%; cursor: pointer;
+      background: #fdf2f8; border: 1.5px solid var(--border); border-radius: 14px;
+      padding: .75rem .9rem; font-family: inherit; text-align: left; color: var(--text);
+      transition: background .12s, border-color .12s;
+    }
+    .choice:hover { background: #fce7f3; border-color: #f9a8d4; }
+    .choice b    { font-size: .92rem; }
+    .choice span { font-size: .76rem; color: var(--muted); }
+    .sk-input { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
+    .sk-input::placeholder { text-transform: none; letter-spacing: 0; }
+    .sk-box {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1.02rem; font-weight: 700;
+      letter-spacing: .04em; color: var(--prim2); background: #fdf2f8; border: 1.5px dashed #f9a8d4;
+      border-radius: 12px; padding: .8rem .6rem; word-break: break-all; user-select: all;
+    }
+    .sk-ack { display: flex; gap: .55rem; align-items: flex-start; text-align: left; font-size: .8rem; color: var(--text2); margin-top: .9rem; cursor: pointer; }
+    .sk-ack input { margin-top: .2rem; accent-color: var(--primary); }
+
+    .sync-chip { font-size: .78rem; }
+    .sync-chip.st-error, .sync-chip.st-auth { background: #fff7ed; border-color: #fdba74; color: #9a3412; }
+    .sync-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--st-good); margin-right: .35rem; vertical-align: 1px; }
+    .sync-dot.off  { background: #d1d5db; }
+    .sync-dot.busy { background: var(--st-warning); animation: pulse 1s infinite; }
+    .sync-dot.bad  { background: var(--st-serious); }
+    @keyframes pulse { 50% { opacity: .35; } }
+    .kv { display: flex; justify-content: space-between; gap: .75rem; font-size: .84rem; padding: .35rem 0; }
+    .kv span:first-child { color: var(--muted); }
+    .btn-row { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
 
     /* ── Header ── */
     .hdr {
@@ -568,51 +603,124 @@
 <!-- ══════════════════ LOCK SCREEN ══════════════════ -->
 <div id="screen-lock">
   <div class="lock-card">
-    <!-- Unlock / create / import -->
-    <div id="lock-main">
-      <div class="lock-icon" id="lock-icon">🔒</div>
-      <h2 class="lock-title" id="lock-title"></h2>
-      <p  class="lock-sub"   id="lock-sub"></p>
+    <!-- Unlock (this device already has a vault) -->
+    <div id="lock-unlock" class="lock-view">
+      <div class="lock-icon">🔒</div>
+      <h2 class="lock-title">Welcome back</h2>
+      <p class="lock-sub" id="unlock-sub">Enter your password to view your budget</p>
+      <input type="text" id="unlock-sk" class="lock-input sk-input" placeholder="Secret Key (TT3-…)" autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
+      <input type="password" id="unlock-pwd" class="lock-input" placeholder="Password" autocomplete="current-password" enterkeyhint="go">
+      <div id="unlock-err" class="lock-err" hidden></div>
+      <button class="btn btn-primary btn-full mt-1" id="unlock-btn" onclick="handleUnlock()">Unlock</button>
+      <p class="lock-note"><a onclick="showLockView('change')">Change password</a> · <a onclick="showLockView('forgot')">Forgot password?</a><br>
+        Encrypted with your password + Secret Key (AES-256-GCM).</p>
+    </div>
 
-      <input type="password" id="lock-pwd"  class="lock-input" placeholder="Password"
-             autocomplete="current-password" enterkeyhint="go">
-      <input type="password" id="lock-conf" class="lock-input" placeholder="Confirm password"
-             autocomplete="new-password" enterkeyhint="go" hidden>
+    <!-- First run on this device -->
+    <div id="lock-welcome" class="lock-view" hidden>
+      <div class="lock-icon">✨</div>
+      <h2 class="lock-title">Set up Transaction Tracker</h2>
+      <p class="lock-sub">How would you like to start on this device?</p>
+      <div class="choice-col">
+        <button class="choice" id="w-import" onclick="showLockView('import')" hidden><b>📥 Bring over my Tracker 2 data</b><span>Budgets, rules and history from tracker_2 on this computer</span></button>
+        <button class="choice" onclick="showLockView('link')"><b>📱 I use it on another device</b><span>Sign in to Google Drive with your Secret Key and password</span></button>
+        <button class="choice" onclick="showLockView('restore')"><b>📄 Restore a backup file</b><span>A backup you exported from Settings</span></button>
+        <button class="choice" onclick="showLockView('create')"><b>🌱 Start fresh</b><span>Empty history, default categories</span></button>
+      </div>
+    </div>
 
-      <div id="lock-err" class="lock-err" hidden></div>
+    <!-- Start fresh -->
+    <div id="lock-create" class="lock-view" hidden>
+      <div class="lock-icon">🌱</div>
+      <h2 class="lock-title">Create a password</h2>
+      <p class="lock-sub">Use a long passphrase. You'll also get a Secret Key to keep safe.</p>
+      <input type="password" id="create-pwd"  class="lock-input" placeholder="New password" autocomplete="new-password">
+      <input type="password" id="create-conf" class="lock-input" placeholder="Confirm password" autocomplete="new-password" enterkeyhint="go">
+      <div id="create-err" class="lock-err" hidden></div>
+      <button class="btn btn-primary btn-full mt-1" id="create-btn" onclick="handleCreate()">Create</button>
+      <p class="lock-note"><a onclick="showLockView('welcome')">← Back</a></p>
+    </div>
 
-      <button class="btn btn-primary btn-full mt-1" id="lock-btn" onclick="handleUnlock()"></button>
-      <p class="lock-note" id="lock-note"></p>
+    <!-- Import from tracker_2 (same computer, local file) -->
+    <div id="lock-import" class="lock-view" hidden>
+      <div class="lock-icon">📥</div>
+      <h2 class="lock-title">Bring over Tracker 2</h2>
+      <p class="lock-sub">Enter the password you use in <b>tracker_2</b>. Tracker 3 will use the same password, plus a new Secret Key.</p>
+      <input type="password" id="import-pwd" class="lock-input" placeholder="Your tracker_2 password" autocomplete="current-password" enterkeyhint="go">
+      <div id="import-err" class="lock-err" hidden></div>
+      <button class="btn btn-primary btn-full mt-1" id="import-btn" onclick="handleImportV3()">Import &amp; continue</button>
+      <p class="lock-note"><a onclick="showLockView('welcome')">← Back</a> · tracker_2's data is left untouched.</p>
+    </div>
+
+    <!-- Join from another device via Google Drive -->
+    <div id="lock-link" class="lock-view" hidden>
+      <div class="lock-icon">📱</div>
+      <h2 class="lock-title">Use your existing data</h2>
+      <p class="lock-sub">Enter your Secret Key and password, then sign in to the Google account you sync with.</p>
+      <input type="text" id="link-sk" class="lock-input sk-input" placeholder="Secret Key (TT3-…)" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <input type="password" id="link-pwd" class="lock-input" placeholder="Password" autocomplete="current-password" enterkeyhint="go">
+      <div id="link-err" class="lock-err" hidden></div>
+      <button class="btn btn-primary btn-full mt-1" id="link-btn" onclick="handleLinkDevice()">Sign in to Google Drive &amp; unlock</button>
+      <p class="lock-note" id="link-note"><a onclick="showLockView('welcome')">← Back</a></p>
+    </div>
+
+    <!-- Restore an exported backup -->
+    <div id="lock-restore" class="lock-view" hidden>
+      <div class="lock-icon">📄</div>
+      <h2 class="lock-title">Restore a backup</h2>
+      <p class="lock-sub">Choose the backup file, then enter the Secret Key and password it was made with.</p>
+      <input type="file" id="restore-file" class="lock-input" accept=".json,application/json">
+      <input type="text" id="restore-sk" class="lock-input sk-input" placeholder="Secret Key (TT3-…)" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <input type="password" id="restore-pwd" class="lock-input" placeholder="Password" autocomplete="current-password" enterkeyhint="go">
+      <div id="restore-err" class="lock-err" hidden></div>
+      <button class="btn btn-primary btn-full mt-1" id="restore-btn" onclick="handleRestore()">Restore &amp; unlock</button>
+      <p class="lock-note"><a onclick="showLockView('welcome')">← Back</a></p>
+    </div>
+
+    <!-- Show the Secret Key once, after creating a vault -->
+    <div id="lock-sk" class="lock-view" hidden>
+      <div class="lock-icon">🔑</div>
+      <h2 class="lock-title">Save your Secret Key</h2>
+      <p class="lock-sub">You'll need it, with your password, to open your data on a new device. Nobody — not even Google — can recover it for you.</p>
+      <div class="sk-box" id="sk-show"></div>
+      <div class="row-between" style="gap:.5rem;margin-top:.6rem">
+        <button class="btn btn-outline btn-sm" style="flex:1" onclick="copySecretKey()">📋 Copy</button>
+        <button class="btn btn-outline btn-sm" style="flex:1" onclick="downloadRecoveryKit()">⬇ Recovery Kit</button>
+      </div>
+      <label class="sk-ack"><input type="checkbox" id="sk-ack" onchange="$id('sk-continue').disabled = !this.checked"> I've saved my Secret Key somewhere safe (printed, or in a password manager)</label>
+      <button class="btn btn-primary btn-full mt-1" id="sk-continue" disabled onclick="finishSetup()">Continue</button>
     </div>
 
     <!-- Change password (needs the current one) -->
-    <div id="lock-change" hidden>
+    <div id="lock-change" class="lock-view" hidden>
       <div class="lock-icon">🔑</div>
       <h2 class="lock-title">Change password</h2>
-      <p class="lock-sub">Your history, budgets and rules are kept.</p>
+      <p class="lock-sub">Your history, budgets and rules are kept. Your Secret Key stays the same.</p>
       <input type="password" id="lc-cur"  class="lock-input" placeholder="Current password" autocomplete="current-password">
       <input type="password" id="lc-new"  class="lock-input" placeholder="New password"     autocomplete="new-password">
       <input type="password" id="lc-conf" class="lock-input" placeholder="Confirm new password" autocomplete="new-password" enterkeyhint="go">
       <div id="lc-err" class="lock-err" hidden></div>
       <button class="btn btn-primary btn-full mt-1" id="lc-btn" onclick="handleLockChange()">Change password &amp; unlock</button>
-      <p class="lock-note"><a onclick="showLockView('main')">← Back</a></p>
+      <p class="lock-note"><a onclick="showLockView('unlock')">← Back</a></p>
     </div>
 
     <!-- Forgot password -->
-    <div id="lock-forgot" hidden>
+    <div id="lock-forgot" class="lock-view" hidden>
       <div class="lock-icon">🤔</div>
       <h2 class="lock-title">Forgot your password?</h2>
       <p class="lock-sub">It can't be recovered — your data is encrypted with it, and it isn't stored anywhere.</p>
       <div class="alert alert-success" style="text-align:left;font-size:.82rem">
-        <b>Still know your current password?</b> You can switch to a new one without losing anything.
+        <b>Still know your current password?</b> Switch to a new one without losing anything.
         <button class="btn btn-outline btn-full btn-sm mt-1" onclick="showLockView('change')">🔑 Change my password</button>
       </div>
+      <div class="alert alert-warning" style="text-align:left;font-size:.82rem;margin-top:.75rem">
+        <b>Unlocked on another device?</b> Change the password there (Settings → Change password). This device picks it up next time you unlock.
+      </div>
       <div class="alert alert-danger" style="text-align:left;font-size:.82rem;margin-top:.75rem">
-        <b>Truly forgotten?</b> Erase Tracker 2's data on this device and set a new password.
-        Budgets and your own rules are deleted. You can re-upload your CSVs afterwards; duplicates are skipped.
+        <b>Truly forgotten?</b> Erase this device's data and start over. Budgets and your own rules are deleted; re-upload your CSVs afterwards.
         <button class="btn btn-danger btn-full btn-sm mt-1" onclick="eraseAndStartOver()">Erase &amp; start over</button>
       </div>
-      <p class="lock-note"><a onclick="showLockView('main')">← Back</a></p>
+      <p class="lock-note"><a onclick="showLockView('unlock')">← Back</a></p>
     </div>
   </div>
 </div>
@@ -624,8 +732,10 @@
     <span class="hdr-title">💳 Transaction Tracker</span>
     <div class="hdr-right">
       <span class="save-ind" id="save-ind">✓ Saved</span>
+      <button class="btn btn-ghost btn-sm sync-chip" id="sync-chip" onclick="onSyncChip()" hidden title="Google Drive sync"><i class="sync-dot" id="sync-dot"></i>☁️</button>
       <button class="btn btn-ghost btn-sm" onclick="showAdd()">➕<span class="lbl"> Add</span></button>
       <button class="btn btn-ghost btn-sm" onclick="showBudget()">🎯<span class="lbl"> Budget</span></button>
+      <button class="btn btn-ghost btn-sm" onclick="showSecurity()" aria-label="Security &amp; sync">⚙️</button>
       <button class="btn btn-ghost btn-sm" onclick="lock()" aria-label="Lock">🔒<span class="lbl"> Lock</span></button>
     </div>
   </header>
@@ -708,7 +818,7 @@
 
       <div class="footer-links">
         <button class="btn-subtle" onclick="showBudget()">🎯 Budget &amp; categories</button>
-        <button class="btn-subtle" onclick="showChangePassword()">🔑 Change password</button>
+        <button class="btn-subtle" onclick="showSecurity()">🔐 Security &amp; sync</button>
       </div>
     </div>
 
@@ -789,18 +899,29 @@
       <div id="budget-content" class="screen"></div>
     </div>
 
+    <!-- ─── SECURITY & SYNC SCREEN ─── -->
+    <div id="screen-security" class="screen" hidden>
+      <div class="page-head">
+        <span class="page-title">🔐 Security &amp; sync</span>
+        <button class="btn btn-ghost btn-sm" onclick="showMain()">← Back</button>
+      </div>
+      <div id="security-content" class="screen"></div>
+    </div>
+
     <!-- ─── CHANGE PASSWORD SCREEN ─── -->
     <div id="screen-chpwd" class="screen" hidden>
       <div class="page-head">
         <span class="page-title">Change password</span>
-        <button class="btn btn-ghost btn-sm" onclick="showMain()">← Back</button>
+        <button class="btn btn-ghost btn-sm" onclick="showSecurity()">← Back</button>
       </div>
       <div class="card">
         <div class="card-label">Set a new password</div>
         <p style="font-size:.875rem;color:var(--muted);margin-bottom:.875rem">
-          Your history and budget will be re-encrypted with the new password.
+          Your history and budget will be re-encrypted with the new password (your Secret Key stays the same).
+          Other devices pick it up the next time you unlock them with the new password.
         </p>
         <div class="pw-form">
+          <input type="password" id="chpwd-cur"  class="inp" placeholder="Current password" autocomplete="current-password" enterkeyhint="next">
           <input type="password" id="chpwd-new"  class="inp" placeholder="New password"     autocomplete="new-password" enterkeyhint="next">
           <input type="password" id="chpwd-conf" class="inp" placeholder="Confirm password" autocomplete="new-password" enterkeyhint="go">
           <div id="chpwd-err" class="lock-err" hidden></div>
@@ -852,10 +973,18 @@
 const SAVINGS       = 1;
 const NULL_TRANSFER = 2;
 const EXPENSE       = 3;
-const STORAGE_KEY   = 'tt_v3';        // tracker_2 store: { months, settings }
-const V2_KEY        = 'tt_v2';        // tracker.html store — read-only here, never overwritten
-const LEGACY_KEY    = 'tt_history';
-const PBKDF2_ITERS  = 100_000;
+// ── Google Drive sync ── paste your OAuth Client ID between the quotes (it is not a secret)
+const GOOGLE_CLIENT_ID = '';
+
+const VAULT_KEY     = 'tt_v4';        // tracker_3 vault: password + Secret Key
+const SK_KEY        = 'tt_v4_sk';     // this device's copy of the Secret Key
+const DRIVE_KEY     = 'tt_v4_drive';  // sync bookkeeping (no data, no tokens)
+const GCID_KEY      = 'tt_v4_gcid';   // Client ID typed in the app, if not set above
+const V3_KEY        = 'tt_v3';        // tracker_2's store — read-only here, never overwritten
+const V3_ITERS      = 100_000;        // tracker_2's key stretching
+const KDF_ITERS     = 600_000;        // tracker_3's key stretching (PBKDF2-SHA256)
+const DRIVE_FILE    = 'transaction-tracker-vault.json';
+const DRIVE_SCOPE   = 'https://www.googleapis.com/auth/drive.appdata';   // a hidden folder only this app can see
 
 // Categorical palette (fixed order, validated for adjacent-pair CVD separation).
 // A category keeps its slot forever — colour follows the entity, never its rank.
@@ -971,8 +1100,9 @@ function defaultSettings() {
 // In-memory state
 // ═══════════════════════════════════════════════════════════════
 let activeKey       = null;   // CryptoKey — in-memory only, gone on lock/close
-let currentSalt     = null;
-let store           = { months: {}, settings: defaultSettings() };
+let currentSalt     = null;   // vault salt (base64) — shared by every device on this vault
+let currentIters    = KDF_ITERS;
+let store           = { months: {}, settings: defaultSettings(), meta: {} };
 let uploadCollapsed = false;
 let currentMonth    = null;
 let expandedCats    = new Set();
@@ -982,6 +1112,8 @@ let sortedRules     = [];
 let catMap          = {};
 let monthCache      = {};
 let merchReg        = [];
+let lastSettingsJSON = '';    // to tell settings edits apart from transaction edits when syncing
+let pendingSetup    = null;   // vault created but Secret Key not yet acknowledged
 
 // ═══════════════════════════════════════════════════════════════
 // Crypto helpers  (Web Crypto API — no external libraries)
@@ -997,16 +1129,25 @@ function b64Enc(buf) {
 }
 function b64Dec(str) { return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
 
-async function deriveKey(password, salt) {
-  const enc = new TextEncoder();
-  const raw = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERS, hash: 'SHA-256' },
-    raw,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
-  );
+// tracker_2's key: password only, 100k PBKDF2 rounds (used once, to import)
+async function deriveV3Key(password, salt) {
+  const raw = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: V3_ITERS, hash: 'SHA-256' },
+    raw, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+
+// tracker_3's key: stretch the password (600k PBKDF2 rounds), then mix in the 120-bit Secret
+// Key with HKDF. A stolen vault can't be brute-forced from the password alone.
+async function deriveVaultKey(password, secretKey, salt, iters = KDF_ITERS) {
+  const enc  = new TextEncoder();
+  const base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const pw   = new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: iters, hash: 'SHA-256' }, base, 256));
+  const sk   = skToBytes(secretKey);
+  const ikm  = new Uint8Array(pw.length + sk.length);
+  ikm.set(pw); ikm.set(sk, pw.length);
+  const hk = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt, info: enc.encode('transaction-tracker/v4') },
+    hk, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
 
 async function encryptJSON(obj, key) {
@@ -1020,42 +1161,102 @@ async function decryptJSON(stored, key) {
   return JSON.parse(new TextDecoder().decode(pt));
 }
 
+// ── Secret Key: 120 random bits, shown as TT3-XXXXXX-XXXXXX-XXXXXX-XXXXXX (Crockford base32) ──
+const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+function newSecretKey() {
+  const bytes = crypto.getRandomValues(new Uint8Array(15));
+  let bits = '', out = '';
+  for (const b of bytes) bits += b.toString(2).padStart(8, '0');
+  for (let i = 0; i < bits.length; i += 5) out += B32[parseInt(bits.slice(i, i + 5), 2)];
+  return out;                                      // 24 characters
+}
+// Accepts any spacing/dashes/case, and the usual look-alikes (O→0, I/L→1)
+function normalizeSK(input) {
+  let s = String(input || '').toUpperCase().replace(/[^0-9A-Z]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+  if (s.length === 27 && s.startsWith('TT3')) s = s.slice(3);
+  return s.length === 24 && [...s].every(c => B32.includes(c)) ? s : null;
+}
+function formatSK(sk) { return 'TT3-' + sk.match(/.{6}/g).join('-'); }
+function skToBytes(sk) {
+  const s = normalizeSK(sk);
+  if (!s) throw new Error('Secret Key is not valid');
+  let bits = '';
+  for (const c of s) bits += B32.indexOf(c).toString(2).padStart(5, '0');
+  return Uint8Array.from(bits.match(/.{8}/g), b => parseInt(b, 2));
+}
+function deviceSK()      { return normalizeSK(localStorage.getItem(SK_KEY)); }
+function saveDeviceSK(sk){ localStorage.setItem(SK_KEY, normalizeSK(sk)); }
+
 // ═══════════════════════════════════════════════════════════════
-// Storage
+// Vault storage — the same encrypted record lives on each device and in Google Drive
 // ═══════════════════════════════════════════════════════════════
 
-let skipImport = false;   // "start fresh" chosen on the import screen
+function readJSON(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }
+function localVault()  { const r = readJSON(VAULT_KEY); return r && r.ct && r.v === 4 ? r : null; }
+function v3Vault()     { const r = readJSON(V3_KEY);    return r && r.ct ? r : null; }
 
-// Returns { type: 'empty' | 'encrypted' | 'import' | 'legacy', data }
-function detectStorageState() {
-  try {
-    const v3 = localStorage.getItem(STORAGE_KEY);
-    if (v3) {
-      const parsed = JSON.parse(v3);
-      if (parsed.ct) return { type: 'encrypted', data: parsed };
-    }
-    if (skipImport) return { type: 'empty' };
-    const v2 = localStorage.getItem(V2_KEY);
-    if (v2) {
-      const parsed = JSON.parse(v2);
-      if (parsed.ct) return { type: 'import', data: parsed };
-    }
-    const legacy = localStorage.getItem(LEGACY_KEY);
-    if (legacy) return { type: 'legacy', data: JSON.parse(legacy) };
-  } catch { /* ignore */ }
-  return { type: 'empty' };
+async function sealStore() {
+  const { iv, ct } = await encryptJSON(store, activeKey);
+  return { v: 4, app: 'transaction-tracker', salt: currentSalt, iters: currentIters, iv, ct, at: Date.now() };
+}
+
+async function openVault(rec, password, secretKey) {
+  const key  = await deriveVaultKey(password, secretKey, b64Dec(rec.salt), rec.iters || KDF_ITERS);
+  const data = await decryptJSON(rec, key);   // throws OperationError on a wrong password / Secret Key
+  return { key, data };
+}
+
+function adoptVault(rec, key, data) {
+  activeKey    = key;
+  currentSalt  = rec.salt;
+  currentIters = rec.iters || KDF_ITERS;
+  store        = normalizeStore(data);
+  lastSettingsJSON = JSON.stringify(store.settings);
+}
+
+// New vault: fresh salt + this device's Secret Key
+async function createVault(password, data, secretKey = deviceSK() || newSecretKey()) {
+  const salt   = crypto.getRandomValues(new Uint8Array(16));
+  currentSalt  = b64Enc(salt);
+  currentIters = KDF_ITERS;
+  activeKey    = await deriveVaultKey(password, secretKey, salt, KDF_ITERS);
+  saveDeviceSK(secretKey);
+  store = normalizeStore(data);
+  lastSettingsJSON = JSON.stringify(store.settings);
+  await persist();
+  return secretKey;
+}
+
+async function rekeyVault(newPassword) {
+  const salt   = crypto.getRandomValues(new Uint8Array(16));
+  currentSalt  = b64Enc(salt);
+  currentIters = KDF_ITERS;
+  activeKey    = await deriveVaultKey(newPassword, deviceSK(), salt, KDF_ITERS);
+  await persist();
+}
+
+function stampMeta() {
+  const m = store.meta ||= {};
+  const sj = JSON.stringify(store.settings);
+  if (sj !== lastSettingsJSON) { m.settingsAt = Date.now(); lastSettingsJSON = sj; }
+  m.updatedAt = Date.now();
 }
 
 async function persist() {
   if (!activeKey) throw new Error('Not unlocked');
-  const { iv, ct } = await encryptJSON(store, activeKey);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: 3, salt: currentSalt, iv, ct }));
+  stampMeta();
+  const rec = await sealStore();
+  localStorage.setItem(VAULT_KEY, JSON.stringify(rec));
+  syncDirty = true;
+  queueSync();
+  return rec;
 }
 
 let saveTimer = null;
 function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
+    saveTimer = null;
     try {
       await persist();
     } catch (e) {
@@ -1068,44 +1269,15 @@ function scheduleSave() {
   }, 400);
 }
 
-async function setupNew(password, data) {
-  const salt  = crypto.getRandomValues(new Uint8Array(16));
-  currentSalt = b64Enc(salt);
-  activeKey   = await deriveKey(password, salt);
-  store       = normalizeStore(data);
-  await persist();
-}
-
-async function unlockExisting(password, stored) {
-  const key  = await deriveKey(password, b64Dec(stored.salt));
-  // AES-GCM throws OperationError if password is wrong — that's our wrong-password signal
-  const data = await decryptJSON(stored, key);
-  activeKey   = key;
-  currentSalt = stored.salt;
-  store       = normalizeStore(data);
-}
-
-// tracker.html history shape: { 'YYYY-MM': { income, expense, savings, balance, transactions } }
-function convertLegacyHistory(h) {
-  const months = {};
-  for (const [mo, d] of Object.entries(h || {})) {
-    months[mo] = {
-      transactions: (d.transactions || []).map(t => ({
-        date: t.date, name: t.name, raw: t.raw || t.name, account: t.account || '',
-        savings: t.savings || 0, expense: t.expense || 0, income: t.income || 0,
-      })),
-    };
-  }
-  return months;
-}
-
 function normalizeStore(data) {
-  const s = { months: data?.months || {}, settings: data?.settings || defaultSettings() };
+  const s = { months: data?.months || {}, settings: data?.settings || defaultSettings(), meta: data?.meta || {} };
   const st = s.settings;
   st.total       = +st.total || 0;
   st.savingsGoal = +st.savingsGoal || 0;
   st.categories  = st.categories?.length ? st.categories : defaultCategories();
   st.rules       = Array.isArray(st.rules) ? st.rules : defaultRules();
+  st.ui        ||= {};
+  if (st.ui.autoLockMin == null) st.ui.autoLockMin = 10;
   // Quick-record presets you've pinned (null = use the auto guess)
   st.quick     ||= {};
   for (const [k, n] of Object.entries(GUESS_SLOTS)) {
@@ -1121,7 +1293,52 @@ function normalizeStore(data) {
   // The fallback buckets must always exist
   for (const req of defaultCategories().filter(c => c.locked))
     if (!st.categories.some(c => c.id === req.id)) st.categories.push(req);
+  s.meta.deleted ||= {};
   return s;
+}
+
+// Combine two copies of the store (this device + Google Drive):
+//  • transactions: union, with duplicates collapsed exactly like a CSV re-upload
+//  • manual entries you deleted (or that were matched to the bank) stay deleted
+//  • budgets, categories, rules & presets: whichever copy changed them last
+//  • "Clear all history" on one device wins over older history on the other
+function mergeStores(a, b) {
+  const ma = a.meta || {}, mb = b.meta || {};
+  const resetAt = Math.max(ma.resetAt || 0, mb.resetAt || 0);
+  const deleted = { ...(ma.deleted || {}), ...(mb.deleted || {}) };
+  const usable = (side, m) => {
+    if ((m.resetAt || 0) >= resetAt) return side.months || {};
+    // This copy hasn't seen the newer reset: keep only manual entries made after it
+    const out = {};
+    for (const [mo, d] of Object.entries(side.months || {})) {
+      const keep = d.transactions.filter(t => t.manual && (t.createdAt || 0) > resetAt);
+      if (keep.length) out[mo] = { transactions: keep };
+    }
+    return out;
+  };
+  const A = usable(a, ma), B = usable(b, mb);
+  const months = {};
+  for (const mo of new Set([...Object.keys(A), ...Object.keys(B)])) {
+    const ta = A[mo]?.transactions || [], tb = B[mo]?.transactions || [];
+    // Bank rows: collapse duplicates like a re-upload. Manual entries: match by id, so two
+    // identical quick-records made on two devices both survive.
+    const bank = mergeTransactions(ta.filter(t => !t.manual), tb.filter(t => !t.manual)).merged;
+    const manual = new Map();
+    for (const t of [...ta, ...tb]) if (t.manual && !manual.has(t.id)) manual.set(t.id, t);
+    const merged = [...bank, ...manual.values()]
+      .filter(t => !(t.id && deleted[t.id]))
+      .sort((x, y) => x.date.localeCompare(y.date));
+    if (merged.length) months[mo] = { transactions: merged };
+  }
+  // Forget tombstones after 6 months
+  const cutoff = Date.now() - 183 * 864e5;
+  for (const [id, at] of Object.entries(deleted)) if (at < cutoff) delete deleted[id];
+  const settings = (ma.settingsAt || 0) >= (mb.settingsAt || 0) ? a.settings : b.settings;
+  return normalizeStore({
+    months, settings,
+    meta: { updatedAt: Math.max(ma.updatedAt || 0, mb.updatedAt || 0),
+            settingsAt: Math.max(ma.settingsAt || 0, mb.settingsAt || 0), resetAt, deleted },
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1273,6 +1490,7 @@ function reconcileManual(fresh) {
       used.add(best.f);
       if (m.cat) { best.f.cat = m.cat; best.f.sub = m.sub; }
       drop.add(m);
+      store.meta.deleted[m.id] = Date.now();   // keep it gone on your other devices too
       n++;
     }
     if (drop.size) store.months[mo].transactions = txs.filter(t => !drop.has(t));
@@ -1799,185 +2017,228 @@ function renderTrend() {
 // Lock screen
 // ═══════════════════════════════════════════════════════════════
 
-function renderLockScreen() {
-  const state = detectStorageState();
-  const conf  = document.getElementById('lock-conf');
-  const title = document.getElementById('lock-title');
-  const sub   = document.getElementById('lock-sub');
-  const btn   = document.getElementById('lock-btn');
-  const note  = document.getElementById('lock-note');
-  const icon  = document.getElementById('lock-icon');
-
-  const pwd = document.getElementById('lock-pwd');
-  document.getElementById('lock-err').hidden = true;
-  pwd.value  = '';
-  conf.value = '';
-  pwd.placeholder = state.type === 'encrypted' ? 'Password'
-                  : state.type === 'import'    ? 'Your tracker.html password'
-                  : 'New password';
-
-  if (state.type === 'encrypted') {
-    icon.textContent  = '🔒';
-    title.textContent = 'Welcome back';
-    sub.textContent   = 'Enter your password to view your budget';
-    conf.hidden       = true;
-    btn.textContent   = 'Unlock';
-    note.innerHTML    = '<a onclick="showLockView(\'change\')">Change password</a> · <a onclick="showLockView(\'forgot\')">Forgot password?</a><br>Data encrypted with AES-256-GCM.';
-  } else if (state.type === 'import') {
-    // Not a "set password" screen — the old password is the only key to tracker.html's history
-    icon.textContent  = '📥';
-    title.textContent = 'Import your history';
-    sub.innerHTML     = 'Enter the password you use in <b>tracker.html</b> — not a new one. Tracker 2 will use the same password.';
-    conf.hidden       = true;
-    btn.textContent   = 'Import & continue';
-    note.innerHTML    = '<a onclick="startFresh()">Want a new password instead? Start fresh</a><br>You\'ll re-upload your CSVs. tracker.html is left untouched.';
-  } else if (state.type === 'legacy') {
-    icon.textContent  = '🛡️';
-    title.textContent = 'Secure your data';
-    sub.textContent   = 'Existing records found — create a password to encrypt them.';
-    conf.hidden       = false;
-    btn.textContent   = 'Encrypt & continue';
-    note.innerHTML    = 'Your records will be encrypted. <strong>Keep your password safe — it cannot be recovered.</strong>';
-  } else {
-    icon.textContent  = '✨';
-    title.textContent = 'Welcome';
-    sub.textContent   = 'Create a password to protect your financial data.';
-    conf.hidden       = false;
-    btn.textContent   = 'Get started';
-    note.innerHTML    = 'AES-256-GCM encryption. <strong>Keep your password safe — it cannot be recovered.</strong>' +
-      (skipImport && localStorage.getItem(V2_KEY)
-        ? '<br><a onclick="skipImport = false; showLockView(\'main\')">Import history from tracker.html instead</a>' : '');
-  }
-}
+const LOCK_VIEWS = ['unlock', 'welcome', 'create', 'import', 'link', 'restore', 'sk', 'change', 'forgot'];
+let pendingLinkSK = null;     // Secret Key from a setup link (#sk=…)
 
 function showLockView(view) {
-  for (const v of ['main', 'change', 'forgot'])
-    document.getElementById('lock-' + v).hidden = v !== view;
-  if (view === 'change') {
-    for (const id of ['lc-cur', 'lc-new', 'lc-conf']) document.getElementById(id).value = '';
-    document.getElementById('lc-err').hidden = true;
-    document.getElementById('lc-cur').focus();
+  for (const v of LOCK_VIEWS) document.getElementById('lock-' + v).hidden = v !== view;
+  const root = document.getElementById('screen-lock');
+  root.querySelectorAll('.lock-err').forEach(e => { e.hidden = true; });
+  root.querySelectorAll('input[type=password]').forEach(i => { i.value = ''; });
+  if (view === 'unlock') {
+    const needSK = !deviceSK();
+    $id('unlock-sk').hidden = !needSK;
+    $id('unlock-sub').textContent = needSK ? 'This device needs your Secret Key once, plus your password'
+                                           : 'Enter your password to view your budget';
   }
-  if (view === 'main') { renderLockScreen(); document.getElementById('lock-pwd').focus(); }
-}
-
-async function handleLockChange() {
-  const cur  = document.getElementById('lc-cur').value;
-  const nw   = document.getElementById('lc-new').value;
-  const conf = document.getElementById('lc-conf').value;
-  const err  = document.getElementById('lc-err');
-  const btn  = document.getElementById('lc-btn');
-  const fail = msg => { err.textContent = msg; err.hidden = false; };
-  err.hidden = true;
-  const state = detectStorageState();
-  if (state.type !== 'encrypted') { showLockView('main'); return; }
-  if (!cur)          return fail('Enter your current password.');
-  if (nw.length < 4) return fail('New password must be at least 4 characters.');
-  if (nw !== conf)   return fail('New passwords do not match.');
-
-  btn.disabled = true;
-  btn.textContent = '⏳ Please wait…';
-  try {
-    await unlockExisting(cur, state.data);
-  } catch (e) {
-    activeKey = null; currentSalt = null;
-    btn.disabled = false;
-    btn.textContent = 'Change password & unlock';
-    return fail(e.name === 'OperationError' ? 'Current password is incorrect.' : 'Something went wrong: ' + e.message);
+  if (view === 'welcome') $id('w-import').hidden = !v3Vault();
+  if (view === 'link') {
+    if (pendingLinkSK) $id('link-sk').value = formatSK(pendingLinkSK);
+    prepareGis();
+    renderLinkNote();
   }
-  try {
-    const salt  = crypto.getRandomValues(new Uint8Array(16));
-    currentSalt = b64Enc(salt);
-    activeKey   = await deriveKey(nw, salt);
-    await persist();
-  } catch (e) {
-    activeKey = null; currentSalt = null;
-    btn.disabled = false;
-    btn.textContent = 'Change password & unlock';
-    return fail('Could not save the new password: ' + e.message + ' — your old password still works.');
-  }
-  btn.disabled = false;
-  btn.textContent = 'Change password & unlock';
-  enterApp();
-  showAlert('Password changed. Use your new password from now on.', 'success');
+  if (view === 'restore' && deviceSK() && !$id('restore-sk').value) $id('restore-sk').value = formatSK(deviceSK());
+  const first = [...document.getElementById('lock-' + view).querySelectorAll('input.lock-input')]
+    .find(i => !i.hidden && !i.value && i.type !== 'file');
+  first?.focus();
 }
 
-// The password is never stored — it *is* the encryption key — so "forgot" can only mean
-// wiping Tracker 2's saved data on this device. tracker.html's data (tt_v2) is not touched.
-function eraseAndStartOver() {
-  if (!confirm("Erase Tracker 2's saved history, budgets and rules on this device?\n\nThis can't be undone. tracker.html is not affected.")) return;
-  localStorage.removeItem(STORAGE_KEY);
-  skipImport = true;          // go straight to "create a new password"
-  showLockView('main');
+function renderLockScreen() { showLockView(localVault() ? 'unlock' : 'welcome'); }
+
+function renderLinkNote() {
+  const why = !syncSupported() ? "Google Drive sign-in only works on the hosted version of the app (an https:// address)."
+            : !clientId()      ? "This copy of the app doesn't have a Google Client ID yet — see the setup steps."
+            : '';
+  $id('link-note').innerHTML = (why ? `<span style="color:#9a3412">${esc(why)}</span><br>` : '') +
+    `<a onclick="showLockView('welcome')">← Back</a>`;
 }
 
-function startFresh() {
-  if (!confirm("Start Tracker 2 with a new password and empty history? Your tracker.html data stays as it is; you'll just re-upload your CSVs here.")) return;
-  skipImport = true;
-  renderLockScreen();
-  document.getElementById('lock-pwd').focus();
-}
-
-function showLockErr(msg) {
-  const el = document.getElementById('lock-err');
+function lockErr(view, msg) {
+  const el = $id(view + '-err');
   el.textContent = msg;
   el.hidden = false;
 }
 
+async function busy(btnId, fn) {
+  const b = $id(btnId), label = b.innerHTML;
+  b.disabled = true;
+  b.textContent = '⏳ Please wait…';
+  try { return await fn(); } finally { b.disabled = false; b.innerHTML = label; }
+}
+
+const isWrongKey = e => e?.name === 'OperationError';
+
 async function handleUnlock() {
-  const pwdEl  = document.getElementById('lock-pwd');
-  const confEl = document.getElementById('lock-conf');
-  const btn    = document.getElementById('lock-btn');
-  const state  = detectStorageState();
-  const pwd    = pwdEl.value;
-  const label  = btn.textContent;
-
-  document.getElementById('lock-err').hidden = true;
-  if (!pwd) { showLockErr('Please enter a password.'); pwdEl.focus(); return; }
-
-  if (state.type === 'empty' || state.type === 'legacy') {
-    if (pwd.length < 4)       { showLockErr('Password must be at least 4 characters.'); return; }
-    if (pwd !== confEl.value) { showLockErr('Passwords do not match.'); confEl.focus(); return; }
-  }
-
-  btn.disabled    = true;
-  btn.textContent = '⏳ Please wait…';
-
-  try {
-    if (state.type === 'encrypted') {
-      await unlockExisting(pwd, state.data);
-    } else if (state.type === 'import') {
-      const key  = await deriveKey(pwd, b64Dec(state.data.salt));
-      const hist = await decryptJSON(state.data, key);
-      await setupNew(pwd, { months: convertLegacyHistory(hist), settings: defaultSettings() });
-    } else if (state.type === 'legacy') {
-      await setupNew(pwd, { months: convertLegacyHistory(state.data), settings: defaultSettings() });
-    } else {
-      await setupNew(pwd, { months: {}, settings: defaultSettings() });
+  const rec = localVault();
+  if (!rec) return renderLockScreen();
+  const pwd = $id('unlock-pwd').value;
+  const sk  = deviceSK() || normalizeSK($id('unlock-sk').value);
+  if (!sk)  return lockErr('unlock', 'Enter your Secret Key — it starts with TT3-.');
+  if (!pwd) return lockErr('unlock', 'Please enter your password.');
+  const tokenP = startDriveSignIn();          // inside the click, so Google's popup isn't blocked
+  await busy('unlock-btn', async () => {
+    try {
+      const { key, data } = await openVault(rec, pwd, sk);
+      saveDeviceSK(sk);
+      adoptVault(rec, key, data);
+      enterApp();
+      afterUnlockSync(tokenP);
+    } catch (e) {
+      if (!isWrongKey(e)) return lockErr('unlock', 'Something went wrong: ' + e.message);
+      // The password may have been changed on another device — try the copy in Google Drive
+      const remote = await fetchRemoteVault(tokenP).catch(() => null);
+      if (remote && remote.rec.salt !== rec.salt) {
+        try {
+          const { key, data } = await openVault(remote.rec, pwd, sk);
+          saveDeviceSK(sk);
+          adoptVault(remote.rec, key, data);
+          localStorage.setItem(VAULT_KEY, JSON.stringify(remote.rec));
+          Object.assign(driveState, { fileId: remote.meta.id, version: remote.meta.version, lastSync: Date.now() });
+          saveDriveState();
+          enterApp();
+          setSync('ok');
+          showToast('🔑 Your new password from your other device is now active here too.');
+          return;
+        } catch { /* fall through to the wrong-password message */ }
+      }
+      activeKey = null;
+      lockErr('unlock', deviceSK() ? 'Incorrect password. Try again, or see “Forgot password?” below.'
+                                   : "That password and Secret Key don't match.");
     }
-    pwdEl.value  = '';
-    confEl.value = '';
-    skipImport   = false;
+  });
+}
+
+async function handleCreate() {
+  const p = $id('create-pwd').value, c = $id('create-conf').value;
+  if (p.length < 8) return lockErr('create', 'Use at least 8 characters — a few words make a strong passphrase.');
+  if (p !== c)      return lockErr('create', 'Passwords do not match.');
+  await busy('create-btn', async () => {
+    const sk = await createVault(p, { months: {}, settings: defaultSettings() }, newSecretKey());
+    showSK(sk);
+  });
+}
+
+async function handleImportV3() {
+  const rec3 = v3Vault();
+  const pwd  = $id('import-pwd').value;
+  if (!rec3) return showLockView('welcome');
+  if (!pwd)  return lockErr('import', 'Enter your tracker_2 password.');
+  await busy('import-btn', async () => {
+    try {
+      const data = await decryptJSON(rec3, await deriveV3Key(pwd, b64Dec(rec3.salt)));
+      const sk = await createVault(pwd, { months: data.months || {}, settings: data.settings }, newSecretKey());
+      showSK(sk);
+    } catch (e) {
+      lockErr('import', isWrongKey(e) ? "That isn't your tracker_2 password." : 'Something went wrong: ' + e.message);
+    }
+  });
+}
+
+function handleLinkDevice() {
+  const sk  = normalizeSK($id('link-sk').value);
+  const pwd = $id('link-pwd').value;
+  if (!syncSupported()) return lockErr('link', 'Open the hosted version of the app (https://…) to sign in to Google Drive.');
+  if (!clientId())      return lockErr('link', "This copy of the app has no Google Client ID yet.");
+  if (!sk)              return lockErr('link', 'That Secret Key looks incomplete — it has 24 characters after TT3-.');
+  if (!pwd)             return lockErr('link', 'Enter your password.');
+  const tokenP = requestToken('select_account');   // must happen inside the click
+  return busy('link-btn', async () => {
+    try {
+      await tokenP;
+      const meta = await driveFind();
+      if (!meta) return lockErr('link', 'No Tracker data in this Google account yet. On your first device, open ⚙️ Security & sync → Connect Google Drive.');
+      const rec = await driveDownload(meta.id);
+      const { key, data } = await openVault(rec, pwd, sk);
+      saveDeviceSK(sk);
+      adoptVault(rec, key, data);
+      localStorage.setItem(VAULT_KEY, JSON.stringify(rec));
+      driveState = { connected: true, fileId: meta.id, version: meta.version, lastSync: Date.now() };
+      saveDriveState();
+      pendingLinkSK = null;
+      enterApp();
+      setSync('ok');
+      showToast('✓ Your budgets and history are on this device now');
+    } catch (e) {
+      lockErr('link', isWrongKey(e) ? "That Secret Key or password doesn't match the data in Google Drive." : e.message);
+    }
+  });
+}
+
+async function handleRestore() {
+  const file = $id('restore-file').files[0];
+  const sk   = normalizeSK($id('restore-sk').value);
+  const pwd  = $id('restore-pwd').value;
+  if (!file) return lockErr('restore', 'Choose your backup file.');
+  if (!sk)   return lockErr('restore', 'Enter the Secret Key (TT3-…) the backup was made with.');
+  if (!pwd)  return lockErr('restore', 'Enter your password.');
+  await busy('restore-btn', async () => {
+    let rec;
+    try { rec = JSON.parse(await readFileText(file)); } catch { return lockErr('restore', "That file isn't a Tracker backup."); }
+    if (!rec || rec.v !== 4 || !rec.ct) return lockErr('restore', "That file isn't a Tracker 3 backup.");
+    try {
+      const { key, data } = await openVault(rec, pwd, sk);
+      saveDeviceSK(sk);
+      adoptVault(rec, key, data);
+      await persist();
+      enterApp();
+      showToast('✓ Backup restored');
+    } catch (e) {
+      lockErr('restore', isWrongKey(e) ? "That Secret Key or password doesn't match this backup." : 'Something went wrong: ' + e.message);
+    }
+  });
+}
+
+function showSK(sk) {
+  pendingSetup = true;
+  $id('sk-show').textContent = formatSK(sk);
+  $id('sk-ack').checked = false;
+  $id('sk-continue').disabled = true;
+  showLockView('sk');
+}
+
+function finishSetup() {
+  pendingSetup = false;
+  enterApp();
+  showAlert(syncSupported()
+    ? '🎉 All set. To use this on your phone too, open <b>⚙️ Security &amp; sync</b> and connect Google Drive.'
+    : '🎉 All set. To move this to the hosted app, open <b>⚙️ Security &amp; sync</b> → Export encrypted backup.', 'success');
+}
+
+async function handleLockChange() {
+  const rec  = localVault();
+  const cur  = $id('lc-cur').value, nw = $id('lc-new').value, conf = $id('lc-conf').value;
+  if (!rec)          return renderLockScreen();
+  if (!deviceSK())   return lockErr('lc', 'Unlock once with your Secret Key first.');
+  if (!cur)          return lockErr('lc', 'Enter your current password.');
+  if (nw.length < 8) return lockErr('lc', 'New password must be at least 8 characters.');
+  if (nw !== conf)   return lockErr('lc', 'New passwords do not match.');
+  const tokenP = startDriveSignIn();
+  await busy('lc-btn', async () => {
+    try {
+      const { key, data } = await openVault(rec, cur, deviceSK());
+      adoptVault(rec, key, data);
+    } catch (e) {
+      activeKey = null;
+      return lockErr('lc', isWrongKey(e) ? 'Current password is incorrect.' : 'Something went wrong: ' + e.message);
+    }
+    try { await rekeyVault(nw); } catch (e) {
+      activeKey = null;
+      return lockErr('lc', 'Could not save the new password: ' + e.message + ' — your old password still works.');
+    }
     enterApp();
+    afterUnlockSync(tokenP);
+    showAlert('Password changed. Use your new password from now on — on every device.', 'success');
+  });
+}
 
-  } catch (e) {
-    const isWrongPwd = e.name === 'OperationError' || (e.message && e.message.includes('decrypt'));
-    if (isWrongPwd && state.type === 'import') {
-      showLockErr("That isn't your tracker.html password. ");
-      const a = Object.assign(document.createElement('a'), { textContent: 'Start fresh with a new password instead' });
-      a.style.cssText = 'color:inherit;text-decoration:underline;cursor:pointer;font-weight:700';
-      a.onclick = startFresh;
-      document.getElementById('lock-err').appendChild(a);
-    } else if (isWrongPwd) {
-      showLockErr('Incorrect password. Try again, or see “Forgot password?” below.');
-    } else {
-      showLockErr('Something went wrong: ' + e.message);
-    }
-    activeKey = null; currentSalt = null;
-  } finally {
-    btn.disabled    = false;
-    btn.textContent = label;
-  }
+// The password is never stored — it *is* half the encryption key — so "forgot" can only mean
+// wiping this device. tracker_2's data and the Google Drive copy are not touched.
+function eraseAndStartOver() {
+  if (!confirm("Erase Transaction Tracker's data on this device?\n\nThis can't be undone. tracker_2 is not affected. A copy in Google Drive (if you connected it) stays there — you can replace it after setting up again.")) return;
+  for (const k of [VAULT_KEY, SK_KEY, DRIVE_KEY]) localStorage.removeItem(k);
+  driveState = { connected: false };
+  gToken = null;
+  showLockView('welcome');
 }
 
 function enterApp() {
@@ -1986,57 +2247,509 @@ function enterApp() {
   refreshRules();
   showMain();
   if (Object.keys(store.months).length > 0) collapseUpload();
+  lastActivity = Date.now();
+  updateSyncChip();
 }
 
-function lock() {
+async function lock() {
+  // Save anything still pending, and push it to Drive if we safely can
+  if (activeKey) {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; try { await persist(); } catch { /* keep going */ } }
+    if (syncDirty && tokenValid() && driveState.connected) pushIfUnchanged(localVault()).catch(() => {});
+  }
   activeKey   = null;
   currentSalt = null;
-  store       = { months: {}, settings: defaultSettings() };
+  store       = { months: {}, settings: defaultSettings(), meta: {} };
   monthCache  = {};
   closeRuleModal();
   document.getElementById('screen-lock').style.display = '';
   document.getElementById('app').style.display          = 'none';
-  showLockView('main');
+  updateSyncChip();
+  renderLockScreen();
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Change password
-// ═══════════════════════════════════════════════════════════════
-
+// ── In-app change password ──
 function showChangePassword() {
   showScreen('chpwd');
-  document.getElementById('chpwd-new').value  = '';
-  document.getElementById('chpwd-conf').value = '';
+  for (const id of ['chpwd-cur', 'chpwd-new', 'chpwd-conf']) document.getElementById(id).value = '';
   document.getElementById('chpwd-err').hidden = true;
-  document.getElementById('chpwd-new').focus();
+  document.getElementById('chpwd-cur').focus();
 }
 
 async function handleChangePassword() {
+  const cur     = document.getElementById('chpwd-cur').value;
   const newPwd  = document.getElementById('chpwd-new').value;
   const confPwd = document.getElementById('chpwd-conf').value;
   const errEl   = document.getElementById('chpwd-err');
-  const btn     = document.getElementById('chpwd-btn');
-
+  const fail = m => { errEl.textContent = m; errEl.hidden = false; };
   errEl.hidden = true;
-  if (newPwd.length < 4)  { errEl.textContent = 'Password must be at least 4 characters.'; errEl.hidden = false; return; }
-  if (newPwd !== confPwd) { errEl.textContent = 'Passwords do not match.'; errEl.hidden = false; return; }
+  if (newPwd.length < 8)  return fail('Password must be at least 8 characters.');
+  if (newPwd !== confPwd) return fail('Passwords do not match.');
+  await busy('chpwd-btn', async () => {
+    try { await openVault(localVault(), cur, deviceSK()); }
+    catch (e) { return fail(isWrongKey(e) ? 'Current password is incorrect.' : 'Error: ' + e.message); }
+    try {
+      if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+      await rekeyVault(newPwd);
+      showMain();
+      showAlert('Password changed. Your other devices will ask for the new one next time you unlock them.', 'success');
+    } catch (e) { fail('Error: ' + e.message); }
+  });
+}
 
-  btn.disabled    = true;
-  btn.textContent = '⏳ Re-encrypting…';
-  try {
-    const salt  = crypto.getRandomValues(new Uint8Array(16));
-    currentSalt = b64Enc(salt);
-    activeKey   = await deriveKey(newPwd, salt);
-    await persist();
-    showMain();
-    showAlert('Password changed successfully.', 'success');
-  } catch (e) {
-    errEl.textContent = 'Error: ' + e.message;
-    errEl.hidden = false;
-  } finally {
-    btn.disabled    = false;
-    btn.textContent = 'Save new password';
+// ═══════════════════════════════════════════════════════════════
+// Auto-lock
+// ═══════════════════════════════════════════════════════════════
+
+let lastActivity = Date.now();
+for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart'])
+  document.addEventListener(ev, () => { lastActivity = Date.now(); }, { passive: true });
+
+function checkAutoLock() {
+  const min = store.settings?.ui?.autoLockMin;
+  if (!activeKey || !min || pendingSetup) return;
+  if (Date.now() - lastActivity > min * 60000) lock();
+}
+setInterval(checkAutoLock, 15000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  checkAutoLock();
+  if (activeKey && driveState.connected && tokenValid()) syncNow();
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Google Drive sync — only the encrypted vault ever leaves this device
+// ═══════════════════════════════════════════════════════════════
+
+let driveState = readJSON(DRIVE_KEY) || { connected: false };
+function saveDriveState() { localStorage.setItem(DRIVE_KEY, JSON.stringify(driveState)); }
+
+function clientId()      { return GOOGLE_CLIENT_ID || localStorage.getItem(GCID_KEY) || ''; }
+function syncSupported() { return location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname); }
+
+let gisPromise = null, tokenClient = null, gToken = null, gTokenExp = 0, tokenWaiters = null;
+
+function prepareGis() {
+  if (!syncSupported() || !clientId()) return null;
+  if (!gisPromise) {
+    gisPromise = new Promise((resolve, reject) => {
+      if (window.google?.accounts?.oauth2) return resolve();
+      const sc = document.createElement('script');
+      sc.src = 'https://accounts.google.com/gsi/client';
+      sc.async = true;
+      sc.onload = resolve;
+      sc.onerror = () => { gisPromise = null; reject(new Error('Could not load Google sign-in — check your connection.')); };
+      document.head.appendChild(sc);
+    }).then(() => {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: clientId(),
+        scope: DRIVE_SCOPE,
+        callback: resp => {
+          const w = tokenWaiters; tokenWaiters = null;
+          if (!w) return;
+          if (resp.error) return w.reject(new Error(resp.error_description || resp.error));
+          gToken = resp.access_token;
+          gTokenExp = Date.now() + (Number(resp.expires_in) || 3600) * 1000 - 60000;
+          w.resolve(gToken);
+        },
+        error_callback: err => {
+          const w = tokenWaiters; tokenWaiters = null;
+          w?.reject(new Error(err?.type === 'popup_failed_to_open' ? 'Your browser blocked the Google sign-in popup — allow popups for this site.'
+                            : err?.type === 'popup_closed'        ? 'Google sign-in was closed.'
+                            : err?.message || 'Google sign-in failed.'));
+        },
+      });
+    });
+    gisPromise.catch(() => {});
   }
+  return gisPromise;
+}
+
+function tokenValid() { return !!gToken && Date.now() < gTokenExp; }
+
+// Opens Google's sign-in popup — call it straight from a click handler
+function requestToken(prompt = '') {
+  if (tokenValid()) return Promise.resolve(gToken);
+  if (!tokenClient) {
+    prepareGis();
+    const p = Promise.reject(new Error('Google sign-in is still loading — try again in a moment.'));
+    p.catch(() => {});
+    return p;
+  }
+  tokenWaiters?.reject(new Error('Sign-in replaced by a newer request'));
+  const p = new Promise((resolve, reject) => {
+    tokenWaiters = { resolve, reject };
+    setTimeout(() => { if (tokenWaiters?.resolve === resolve) { tokenWaiters = null; reject(new Error('Google sign-in timed out.')); } }, 120000);
+  });
+  p.catch(() => {});
+  tokenClient.requestAccessToken({ prompt });
+  return p;
+}
+
+function startDriveSignIn() {
+  if (!driveState.connected || !syncSupported() || !clientId()) return null;
+  return requestToken('');
+}
+
+function afterUnlockSync(tokenP) {
+  if (!driveState.connected) return;
+  if (!tokenP) return setSync('auth');
+  tokenP.then(() => syncNow()).catch(e => setSync('auth', e.message));
+}
+
+async function gfetch(url, opts = {}) {
+  if (!tokenValid()) throw Object.assign(new Error('Google sign-in needed'), { needAuth: true });
+  const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + gToken } });
+  if (r.status === 401) { gToken = null; throw Object.assign(new Error('Google sign-in expired'), { needAuth: true }); }
+  if (!r.ok) throw new Error(`Google Drive error ${r.status}: ${(await r.text()).slice(0, 160)}`);
+  return r;
+}
+
+async function driveFind() {
+  const q = encodeURIComponent(`name='${DRIVE_FILE}' and trashed=false`);
+  const r = await gfetch(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id,version,modifiedTime)&orderBy=modifiedTime desc`);
+  return (await r.json()).files?.[0] || null;
+}
+
+async function driveDownload(id) {
+  const r = await gfetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`);
+  return r.json();
+}
+
+async function driveUpload(rec, id) {
+  const body = JSON.stringify(rec);
+  if (id) {
+    const r = await gfetch(`https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(id)}?uploadType=media&fields=id,version`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body });
+    return r.json();
+  }
+  const boundary = 'tt' + uid() + uid();
+  const multipart =
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
+    JSON.stringify({ name: DRIVE_FILE, parents: ['appDataFolder'] }) +
+    `\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
+  const r = await gfetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,version',
+    { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body: multipart });
+  return r.json();
+}
+
+async function fetchRemoteVault(tokenP) {
+  if (!tokenP) return null;
+  await tokenP;
+  const meta = await driveFind();
+  return meta ? { rec: await driveDownload(meta.id), meta } : null;
+}
+
+// Upload only if nobody else changed the Drive copy since our last sync (used when locking)
+async function pushIfUnchanged(rec) {
+  if (!rec) return;
+  const meta = await driveFind();
+  if (meta && String(meta.version) !== String(driveState.version)) return;   // merge next time instead
+  const up = await driveUpload(rec, meta?.id);
+  Object.assign(driveState, { fileId: up.id, version: up.version, lastSync: Date.now() });
+  saveDriveState();
+  syncDirty = false;
+}
+
+let syncStatus = 'idle', syncMsg = '', syncDirty = false, syncTimer = null, syncing = false, syncAgain = false;
+
+function queueSync() {
+  clearTimeout(syncTimer);
+  if (driveState.connected && activeKey) syncTimer = setTimeout(() => syncNow(), 2500);
+}
+
+function setSync(status, msg = '') {
+  syncStatus = status;
+  syncMsg = msg;
+  updateSyncChip();
+  const s = document.getElementById('sec-sync-status');
+  if (s) { s.textContent = syncLabel(); renderConflictHelp(); }
+}
+
+function syncLabel() {
+  return { idle: 'Connected', ok: 'Up to date ✓', busy: 'Syncing…', auth: 'Sign-in needed — tap ☁️',
+           error: 'Problem: ' + syncMsg, conflict: syncMsg }[syncStatus] || syncStatus;
+}
+
+function updateSyncChip() {
+  const chip = document.getElementById('sync-chip');
+  chip.hidden = !(driveState.connected && activeKey);
+  const dot = document.getElementById('sync-dot');
+  dot.className = 'sync-dot' + ({ busy: ' busy', auth: ' off', error: ' bad', conflict: ' bad' }[syncStatus] || '');
+  chip.classList.toggle('st-auth',  syncStatus === 'auth');
+  chip.classList.toggle('st-error', syncStatus === 'error' || syncStatus === 'conflict');
+  chip.title = 'Google Drive: ' + syncLabel();
+}
+
+function onSyncChip() {
+  if (syncStatus === 'conflict' || syncStatus === 'error') return showSecurity();
+  syncNow({ interactive: true });
+}
+
+async function syncNow({ interactive = false } = {}) {
+  if (!driveState.connected || !activeKey) return;
+  let tokenP = null;
+  if (!tokenValid()) {
+    if (!interactive) return setSync('auth');
+    tokenP = requestToken('');                  // still inside the click — no await before this
+  }
+  if (syncing) { syncAgain = true; return; }
+  syncing = true;
+  setSync('busy');
+  try {
+    if (tokenP) await tokenP;
+    await syncOnce();
+    setSync('ok');
+  } catch (e) {
+    if (e.needAuth || /sign-in/i.test(e.message)) setSync('auth', e.message);
+    else if (e.conflict) setSync('conflict', e.message);
+    else setSync('error', e.message);
+  } finally {
+    syncing = false;
+    if (syncAgain) { syncAgain = false; queueSync(); }
+  }
+}
+
+async function syncOnce() {
+  const meta = await driveFind();
+  if (meta && String(meta.version) !== String(driveState.version)) {
+    // Someone else (your other device) changed it — merge before uploading
+    const remote = await driveDownload(meta.id);
+    let data = null;
+    if (remote.salt === currentSalt) { try { data = await decryptJSON(remote, activeKey); } catch { /* handled below */ } }
+    if (!data) throw Object.assign(new Error(remote.salt !== currentSalt
+      ? 'Your password was changed on another device. Lock, then unlock with the new password.'
+      : "Google Drive has data this device can't open."), { conflict: true });
+    const before = JSON.stringify(store);
+    store = mergeStores(store, normalizeStore(data));
+    lastSettingsJSON = JSON.stringify(store.settings);
+    refreshRules();
+    monthCache = {};
+    const rec = await sealStore();
+    localStorage.setItem(VAULT_KEY, JSON.stringify(rec));
+    const up = await driveUpload(rec, meta.id);
+    Object.assign(driveState, { fileId: up.id, version: up.version });
+    if (JSON.stringify(store) !== before) rerenderAfterMerge();
+  } else if (!meta || syncDirty) {
+    const rec = localVault() || await sealStore();
+    const up = await driveUpload(rec, meta?.id);
+    Object.assign(driveState, { fileId: up.id, version: up.version });
+  }
+  syncDirty = false;
+  driveState.lastSync = Date.now();
+  saveDriveState();
+}
+
+function rerenderAfterMerge() {
+  // Leave the budget & add screens alone so nothing you're typing gets interrupted
+  if (!$id('screen-main').hidden) renderMain();
+  else if (!$id('screen-detail').hidden) { if (store.months[currentMonth]) renderDetail(); else showMain(); }
+  else if (!$id('screen-security').hidden) renderSecurity();
+  showToast('☁️ Synced changes from your other device');
+}
+
+function connectDrive() {
+  const tokenP = requestToken('select_account');      // inside the click
+  (async () => {
+    try {
+      await tokenP;
+      const meta = await driveFind();
+      let up;
+      if (meta) {
+        const remote = await driveDownload(meta.id);
+        let data = null;
+        if (remote.salt === currentSalt) { try { data = await decryptJSON(remote, activeKey); } catch { /* different vault */ } }
+        if (data) {
+          store = mergeStores(store, normalizeStore(data));
+          lastSettingsJSON = JSON.stringify(store.settings);
+          refreshRules();
+          monthCache = {};
+        } else if (!confirm("This Google account already has Tracker data that this device can't open — it was made with a different password or Secret Key.\n\nReplace it with this device's data?\n\nOK = replace it   ·   Cancel = leave it and don't connect")) {
+          return;
+        }
+        const rec = await sealStore();
+        localStorage.setItem(VAULT_KEY, JSON.stringify(rec));
+        up = await driveUpload(rec, meta.id);
+      } else {
+        up = await driveUpload(localVault() || await sealStore());
+      }
+      driveState = { connected: true, fileId: up.id, version: up.version, lastSync: Date.now() };
+      saveDriveState();
+      syncDirty = false;
+      setSync('ok');
+      renderSecurity();
+      showToast('✓ Connected to Google Drive');
+    } catch (e) {
+      showToast('⚠️ ' + e.message);
+    }
+  })();
+}
+
+function disconnectDrive() {
+  if (!confirm("Stop syncing this device with Google Drive?\n\nYour data stays on this device. The encrypted copy in Drive isn't deleted (remove it in Google Drive → Settings → Manage apps).")) return;
+  try { if (gToken) google.accounts.oauth2.revoke(gToken, () => {}); } catch { /* ignore */ }
+  gToken = null;
+  driveState = { connected: false };
+  saveDriveState();
+  setSync('idle');
+  renderSecurity();
+}
+
+async function replaceRemote() {
+  if (!confirm("Replace the copy in Google Drive with this device's data? Changes that only exist in Drive will be lost.")) return;
+  try {
+    if (!tokenValid()) { setSync('auth'); return showToast('Tap ☁️ to sign in first'); }
+    const rec = await sealStore();
+    localStorage.setItem(VAULT_KEY, JSON.stringify(rec));
+    const up = await driveUpload(rec, (await driveFind())?.id);
+    Object.assign(driveState, { fileId: up.id, version: up.version, lastSync: Date.now() });
+    saveDriveState();
+    syncDirty = false;
+    setSync('ok');
+    renderSecurity();
+  } catch (e) { showToast('⚠️ ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Security & sync screen
+// ═══════════════════════════════════════════════════════════════
+
+let skRevealed = false;
+
+function showSecurity() {
+  skRevealed = false;
+  showScreen('security');
+  renderSecurity();
+}
+
+function renderConflictHelp() {
+  const el = document.getElementById('sec-conflict');
+  if (!el) return;
+  el.innerHTML = syncStatus === 'conflict' && !/password was changed/.test(syncMsg)
+    ? `<button class="btn btn-danger btn-sm" onclick="replaceRemote()">Replace the Drive copy with this device's data</button>` : '';
+}
+
+function renderSecurity() {
+  const el = document.getElementById('security-content');
+  const sk = deviceSK();
+  const ds = driveState;
+  let drive;
+  if (!syncSupported()) {
+    drive = `<p class="small muted">Sync works on the hosted version of the app (an <b>https://</b> address). You're running it from a file on this computer — use <b>Export encrypted backup</b> below to move your data there.</p>`;
+  } else if (!clientId()) {
+    drive = `
+      <p class="small muted">Paste the OAuth Client ID from Google Cloud. It ends in <b>.apps.googleusercontent.com</b> and isn't a secret.</p>
+      <input class="inp sm mt-1" id="gcid-in" placeholder="1234567890-abc….apps.googleusercontent.com" autocomplete="off" spellcheck="false">
+      <div class="btn-row"><button class="btn btn-primary btn-sm" onclick="saveClientId()">Save Client ID</button></div>`;
+  } else if (!ds.connected) {
+    drive = `
+      <p class="small muted">Keeps this device and your others in step. Google only ever receives the <b>encrypted</b> vault, in a hidden folder only this app can see — it can't be read without your password and Secret Key.</p>
+      <div class="btn-row"><button class="btn btn-primary btn-sm" onclick="connectDrive()">☁️ Connect Google Drive</button></div>`;
+  } else {
+    drive = `
+      <div class="kv"><span>Status</span><span id="sec-sync-status">${esc(syncLabel())}</span></div>
+      <div class="kv"><span>Last synced</span><span>${ds.lastSync ? new Date(ds.lastSync).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}</span></div>
+      <div id="sec-conflict" class="mt-1"></div>
+      <div class="btn-row">
+        <button class="btn btn-outline btn-sm" onclick="syncNow({ interactive: true })">⟳ Sync now</button>
+        <button class="btn btn-ghost btn-sm" onclick="disconnectDrive()">Disconnect</button>
+      </div>
+      <p class="small muted mt-1">Google sign-in lasts about an hour. When it runs out, the ☁️ button in the header asks you to tap it to sign in again.</p>`;
+  }
+  const lockMin = store.settings.ui?.autoLockMin ?? 10;
+  el.innerHTML = `
+    <div class="card"><div class="card-label"><span>☁️ Google Drive sync</span></div>${drive}</div>
+
+    <div class="card">
+      <div class="card-label"><span>🔑 Secret Key</span></div>
+      <p class="small muted">With your password, this opens your data on a new device. It never leaves your devices — Google doesn't have it.</p>
+      <div class="sk-box mt-1" id="sec-sk">${sk ? (skRevealed ? formatSK(sk) : 'TT3-••••••-••••••-••••••-' + sk.slice(-6)) : '—'}</div>
+      <div class="btn-row">
+        <button class="btn btn-outline btn-sm" onclick="skRevealed = !skRevealed; renderSecurity()">${skRevealed ? '🙈 Hide' : '👁 Reveal'}</button>
+        <button class="btn btn-outline btn-sm" onclick="copySecretKey()">📋 Copy</button>
+        <button class="btn btn-outline btn-sm" onclick="downloadRecoveryKit()">⬇ Recovery Kit</button>
+        ${syncSupported() ? `<button class="btn btn-outline btn-sm" onclick="copySetupLink()">🔗 Copy setup link</button>` : ''}
+      </div>
+      ${syncSupported() ? `<p class="small muted mt-1">The setup link opens the app on your phone with the Secret Key filled in, so you only type your password. Send it only to yourself (e.g. AirDrop or Notes).</p>` : ''}
+    </div>
+
+    <div class="card">
+      <div class="card-label"><span>⏱ Auto-lock</span></div>
+      <label class="fld">Lock after I've been inactive for
+        <select class="sel" onchange="setAutoLock(this.value)">
+          ${[2, 5, 10, 30, 0].map(m => `<option value="${m}"${m === lockMin ? ' selected' : ''}>${m ? m + ' minutes' : 'Never'}</option>`).join('')}
+        </select>
+      </label>
+    </div>
+
+    <div class="card">
+      <div class="card-label"><span>💾 Backup</span></div>
+      <p class="small muted">An encrypted file you can keep safe or open on another device (Restore a backup). It needs your password and Secret Key.</p>
+      <div class="btn-row"><button class="btn btn-outline btn-sm" onclick="exportBackup()">⬇ Export encrypted backup</button></div>
+    </div>
+
+    <div class="card">
+      <div class="card-label"><span>🔒 Password</span></div>
+      <div class="btn-row" style="margin-top:0"><button class="btn btn-outline btn-sm" onclick="showChangePassword()">🔑 Change password</button></div>
+    </div>`;
+  renderConflictHelp();
+}
+
+function saveClientId() {
+  const v = document.getElementById('gcid-in').value.trim();
+  if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(v)) return showToast('That doesn\'t look like a Client ID — it ends in .apps.googleusercontent.com');
+  localStorage.setItem(GCID_KEY, v);
+  prepareGis();
+  renderSecurity();
+}
+
+function setAutoLock(v) {
+  store.settings.ui.autoLockMin = +v;
+  scheduleSave();
+}
+
+async function copyText(text, done) {
+  try { await navigator.clipboard.writeText(text); showToast(done); }
+  catch { prompt('Copy this:', text); }
+}
+
+function currentSK() { return deviceSK() || normalizeSK(document.getElementById('sk-show').textContent); }
+function copySecretKey()  { copyText(formatSK(currentSK()), '✓ Secret Key copied'); }
+function copySetupLink()  {
+  copyText(`${location.origin}${location.pathname}#sk=${formatSK(currentSK())}`,
+           '✓ Setup link copied — open it on your new device');
+}
+
+function downloadFile(filename, content, type) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const a   = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function downloadRecoveryKit() {
+  const app = syncSupported() ? location.origin + location.pathname : '(your hosted app address)';
+  downloadFile('Transaction-Tracker-Recovery-Kit.txt', [
+    'TRANSACTION TRACKER — RECOVERY KIT',
+    '==================================',
+    '',
+    `Secret Key:  ${formatSK(currentSK())}`,
+    `App:         ${app}`,
+    `Created:     ${new Date().toLocaleString('en-CA')}`,
+    '',
+    'To open your data on a new device you need BOTH this Secret Key and your password.',
+    'Nobody can recover either of them for you.',
+    '',
+    'Keep this somewhere safe: print it, or store it in a password manager.',
+    'Do not keep it next to your password.',
+  ].join('\r\n'), 'text/plain;charset=utf-8');
+}
+
+async function exportBackup() {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  await persist();
+  downloadFile(`transaction-tracker-backup-${todayStr()}.json`, JSON.stringify(localVault()), 'application/json');
+  showToast('✓ Encrypted backup downloaded');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2044,7 +2757,7 @@ async function handleChangePassword() {
 // ═══════════════════════════════════════════════════════════════
 
 function showScreen(name) {
-  for (const s of ['main', 'detail', 'add', 'budget', 'chpwd'])
+  for (const s of ['main', 'detail', 'add', 'budget', 'security', 'chpwd'])
     document.getElementById('screen-' + s).hidden = s !== name;
   hideTip();
   window.scrollTo({ top: 0 });
@@ -2814,7 +3527,7 @@ function validDate(s) { return /^\d{4}-\d{2}-\d{2}$/.test(s || '') && parseLocal
 
 function newManualTx(kind, name, amount, date) {
   return {
-    id: 'm_' + uid(), manual: true, date, name, raw: name, account: 'Manual',
+    id: 'm_' + uid(), manual: true, createdAt: Date.now(), date, name, raw: name, account: 'Manual',
     expense: kind === 'expense' ? amount : 0,
     income:  kind === 'income'  ? amount : 0,
     savings: kind === 'savings' ? amount : 0,
@@ -2847,6 +3560,7 @@ function saveQuick() {
 
 function addManualTx(tx) {
   const mo = tx.date.slice(0, 7);
+  delete store.meta.deleted[tx.id];            // undoing a delete brings it back everywhere
   (store.months[mo] ||= { transactions: [] }).transactions.push(tx);
   store.months[mo].transactions.sort((a, b) => a.date.localeCompare(b.date));
   monthCache = {};
@@ -2863,6 +3577,7 @@ function deleteManualTx(id, quiet = false) {
     const i = txs.findIndex(t => t.id === id);
     if (i < 0) continue;
     const [removed] = txs.splice(i, 1);
+    store.meta.deleted[id] = Date.now();
     if (!txs.length) delete store.months[mo];
     monthCache = {};
     scheduleSave();
@@ -3272,6 +3987,7 @@ function collapseUpload() {
 async function confirmClearHistory() {
   if (!confirm('Delete all stored monthly history? Your budget, categories and rules are kept. This cannot be undone.')) return;
   store.months = {};
+  store.meta.resetAt = Date.now();             // other devices drop their older history too
   monthCache = {};
   await persist();
   renderMain();
@@ -3404,8 +4120,10 @@ dropZone.addEventListener('drop', e => {
   updateFileList();
 });
 
-document.getElementById('lock-pwd').addEventListener('keydown',  e => { if (e.key === 'Enter') handleUnlock(); });
-document.getElementById('lock-conf').addEventListener('keydown', e => { if (e.key === 'Enter') handleUnlock(); });
+// Enter submits whichever lock-screen form you're on
+for (const [id, fn] of [['unlock-pwd', handleUnlock], ['create-conf', handleCreate], ['import-pwd', handleImportV3],
+                        ['link-pwd', handleLinkDevice], ['restore-pwd', handleRestore]])
+  document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') fn(); });
 document.getElementById('chpwd-conf').addEventListener('keydown', e => { if (e.key === 'Enter') handleChangePassword(); });
 document.getElementById('lc-conf').addEventListener('keydown', e => { if (e.key === 'Enter') handleLockChange(); });
 document.getElementById('m-pattern').addEventListener('keydown',  e => { if (e.key === 'Enter') saveRuleFromModal(); });
@@ -3416,8 +4134,17 @@ window.addEventListener('scroll', hideTip, { passive: true });
 // Init
 // ═══════════════════════════════════════════════════════════════
 
-renderLockScreen();
-document.getElementById('lock-pwd').focus();
+// A setup link (…#sk=TT3-…) pre-fills the Secret Key on a new device; strip it from the address bar right away
+{
+  const m = location.hash.match(/sk=([0-9A-Za-z-]+)/);
+  if (m) {
+    pendingLinkSK = normalizeSK(m[1]);
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+}
+if (driveState.connected) prepareGis();      // load Google sign-in early so Unlock can open it instantly
+if (!localVault() && pendingLinkSK) showLockView('link');
+else renderLockScreen();
 </script>
 
 </body>
